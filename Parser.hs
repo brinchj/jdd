@@ -130,7 +130,7 @@ constantPoolP = do
         get1 :: ST.StateT (M.Map Int Constant) Parser Constant
         get1 = do
           idx <- lift u2
-          ST.gets $ maybe (error $ "invalid id") id . M.lookup idx
+          ST.gets $ fromMaybe (error "invalid id") . M.lookup idx
 
         get2 f ma mb = do
           a <- ma <$> get1
@@ -138,7 +138,7 @@ constantPoolP = do
           return $ f a b
 
 
-cpLookup cp i = maybe (error $ "invalid id: " ++ show i) id $ M.lookup i cp
+cpLookup cp i = fromMaybe (error $ "invalid id: " ++ show i) $ M.lookup i cp
 
 
 many2 f = do
