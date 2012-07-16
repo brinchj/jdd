@@ -64,8 +64,25 @@ data AttributeBlock = AttrBlock
                       }
                     deriving Show
 
+
+data ClassFile = ClassFile
+                 { classVersion    :: Version
+                 , classFlags      :: Integer
+                 , classConstants  :: M.Map Integer Constant
+                 , classThis       :: Constant
+                 , classSuper      :: Constant
+                 , classInterfaces :: [AttributeBlock]
+                 , classFields     :: [AttributeBlock]
+                 , classMethods    :: [AttributeBlock]
+                 }
+               deriving Show
+
+
+type ClassParser a = ParsecT B.ByteString () (ST.State ClassFile) a
+
+
 -- Parse 1-byte, 2-byte, 4-byte and 8-byte unsigned int (big-endian)
-u1, u2, u4, u8 :: Parser Integer
+u1, u2, u4, u8 :: ClassParser Integer
 u1 = fromIntegral . ord <$> anyToken
 
 u2 = do
@@ -89,7 +106,7 @@ makeSigned :: Int -> Integer -> Integer
 makeSigned bits n | n > 2 ^ (bits - 1) = n + (2 ^ bits)
                   | otherwise          = n
 
-s1, s2, s4, s8 :: Parser Integer
+s1, s2, s4, s8 :: ClassParser Integer
 s1 = makeSigned 8  <$> u1
 s2 = makeSigned 16 <$> u2
 s4 = makeSigned 32 <$> u4
@@ -97,38 +114,41 @@ s8 = makeSigned 64 <$> u8
 
 
 -- Parse magic number
-magicNumberP :: Parser ()
+magicNumberP :: ClassParser ()
 magicNumberP = void $ string "\xCA\xFE\xBA\xBE"
 
 -- Parse version
-versionP :: Parser Version
+versionP :: ClassParser Version
 versionP = Version <$> u2 <*> u2
 
 
 -- Parse a string with 2-byte length prefix
-string2P :: Parser B.ByteString
+string2P :: ClassParser B.ByteString
 string2P = B.pack <$> (flip replicateM anyChar =<< fromIntegral <$> u2)
 
 -- Parse constant pool
 type ConstantPool = M.Map Integer Constant
-constantPoolP :: Parser ConstantPool
+constantPoolP :: ClassParser ()
 constantPoolP = do
   maxID <- fromIntegral <$> u2
-  ST.execStateT (E.runErrorT $ entriesP $ maxID - 1) M.empty
+  entriesP $ maxID - 1
   where
-    entriesP :: Int -> E.ErrorT String (ST.StateT ConstantPool Parser) ()
+    -- entriesP :: Int -> E.ErrorT String (ClassParser [Constant]) ()
     entriesP = flip replicateM_ entryP
 
     entryP = do
-      constant <- convertTag =<< lift (lift u1)
-      ST.modify $ \m -> M.insert (fromIntegral $ M.size m + 1) constant m
+      constant <- convertTag =<< u1
+      ST.modify $ \cf ->
+        cf { classConstants = insert constant $ classConstants cf }
+      where insert c m = M.insert (fromIntegral $ M.size m + 1) c m
+
 
     convertTag tag =
       case tag of
-        0  -> fail "EOF"
-        1  -> Str              <$^> string2P
-        3  -> SignedInt        <$^> s4
-        5  -> Long             <$^> s8
+        0  -> E.fail "EOF"  -- TODO: Correct this behavior
+        1  -> Str              <$> string2P
+        3  -> SignedInt        <$> s4
+        5  -> Long             <$> s8
         7  -> ClassRef . Class . unStr <$> get1
 
         10 -> Method  `get2` unClassRef $ unDescRef
@@ -137,11 +157,10 @@ constantPoolP = do
         _  -> error $ "Unknown constant pool entry-tag: " ++ show tag
 
       where
-        f <$^> v = f <$> lift (lift v)
-
         get1 = do
-          idx <- lift $ lift u2
-          ST.gets $ fromMaybe (error "invalid id") . M.lookup idx
+          idx <- u2
+          ST.gets $ fromMaybe (error "invalid id") .
+            M.lookup idx . classConstants
 
         get2 f ma mb = do
           a <- ma <$> get1
@@ -149,10 +168,12 @@ constantPoolP = do
           return $ f a b
 
 
-cpLookup cp i = fromMaybe (error $ "invalid id: " ++ show i) $ M.lookup i cp
+cpLookup :: Integer -> ClassParser Constant
+cpLookup i = ST.gets $ fromMaybe (error $ "invalid id: " ++ show i) .
+             M.lookup i . classConstants
 
 
-many2 :: Parser a -> Parser [a]
+many2 :: ClassParser a -> ClassParser [a]
 many2 a = do
   n <- fromIntegral <$> u2
   replicateM n a
@@ -160,43 +181,74 @@ many2 a = do
 
 interfacesP = undefined
 
-blockP cp = do
+
+blockP :: ClassParser AttributeBlock
+blockP = do
   flags <- u2
-  Str name <- cpLookup cp <$> u2
-  Str desc <- cpLookup cp <$> u2
-  as <- many2 $ attributeP cp
+  Str name <- cpLookup =<< u2
+  Str desc <- cpLookup =<< u2
+  as <- many2 attributeP
   return $ AttrBlock flags name desc as
 
-attributeP cp = do
-  Str name <- cpLookup cp <$> u2
+addBlocksP :: ([AttributeBlock] -> ClassFile -> ClassFile) -> ClassParser ()
+addBlocksP f = do
+  blocks <- many2 blockP
+  ST.modify $ \cf -> f blocks cf
+
+
+attributeP :: ClassParser Attribute
+attributeP = do
+  Str name <- cpLookup =<< u2
   body <- B.pack <$> (flip replicateM anyChar =<< fromIntegral <$> u4)
   return $ Attr name body
 
 
---
--- TODO: Implement a Class datatype and use a StateT to update it instead of
---       parsing parameters around (see constantPoolP)
---
+fieldsP :: ClassParser ()
+fieldsP = addBlocksP $ \fs cf -> cf { classFields = fs }
+
+methodsP :: ClassParser ()
+methodsP = addBlocksP $ \ms cf -> cf { classMethods = ms }
+
+
+classFile :: ClassParser ()
 classFile = do
   _ <- magicNumberP
   version <- versionP
-  cp <- constantPoolP
-  access <- u2
 
-  this <- cpLookup cp <$> u2
-  supr <- cpLookup cp <$> u2
+  -- Parse and update constant pool
+  constantPoolP
+
+  flags <- u2
+
+  this <- cpLookup =<< u2
+  supr <- cpLookup =<< u2
+
+  -- update version, access, this and super
+  ST.modify $ \cf ->
+    cf { classVersion = version
+       , classFlags = flags
+       , classThis = this
+       , classSuper = supr }
 
   ilen <- u2 -- interfaces
   when (ilen > 0) $ error "Interfaces not yet supported"
 
-  fields  <- many2 $ blockP cp
-  methods <- many2 $ blockP cp
+  fieldsP
+  methodsP
 
-  return (version, access, cp, this, supr, ilen, fields, methods)
+  return ()
 
 
-parseClassFile :: B.ByteString -> IO ()
-parseClassFile = parseTest classFile
+parseClassFile :: B.ByteString -> ClassFile
+parseClassFile bs = ST.execState (runPT classFile () "" bs) emptyST
+  where
+    emptyST = ClassFile { classConstants  = M.empty
+                        , classInterfaces = []
+                        , classMethods    = []
+                        , classFields     = []
+                        }
 
 test :: IO ()
-test = B.readFile "aa.class" >>= parseClassFile
+test = do
+  bytes <- B.readFile "aa.class"
+  print $ parseClassFile bytes
