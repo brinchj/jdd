@@ -31,10 +31,9 @@ data Desc = Desc { descName :: B.ByteString
                  , descType :: B.ByteString }
           deriving Show
 
-data Constant = Str
-                { unStr :: B.ByteString }
-              | SignedInt Integer
+data Constant = SignedInt Integer
               | Long      Integer
+              | Str      { unStr :: B.ByteString }
               | ClassRef { unClassRef :: Class }
               | DescRef  { unDescRef  :: Desc  }
               | Method
