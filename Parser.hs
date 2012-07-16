@@ -23,18 +23,23 @@ import Data.Attoparsec.ByteString
 data Version = Version { getMajor :: Integer, getMinor :: Integer}
              deriving Show
 
+
+data Class = Class { classPath :: B.ByteString }
+           deriving Show
+
+data Desc = Desc { descName :: B.ByteString
+                 , descType :: B.ByteString }
+          deriving Show
+
 data Constant = Str
                 { unStr :: B.ByteString }
               | SignedInt Integer
-              | Long Integer
-              | ClassRef
-                { classPath :: B.ByteString }
-              | Desc
-                { descName :: B.ByteString
-                , descType :: B.ByteString }
+              | Long      Integer
+              | ClassRef { unClassRef :: Class }
+              | DescRef  { unDescRef  :: Desc  }
               | Method
-                { methodClass :: Constant
-                , methodDesc  :: Constant }
+                { methodClass :: Class
+                , methodDesc  :: Desc }
               deriving Show
 
 data Attribute = Attr
@@ -117,10 +122,10 @@ constantPoolP = do
         1  -> Str              <$^> string2P
         3  -> SignedInt        <$^> s4
         5  -> Long             <$^> s8
-        7  -> ClassRef . unStr  <$> get1
+        7  -> ClassRef . Class . unStr <$> get1
 
-        10 -> Method `get2` id    $ id
-        12 -> Desc   `get2` unStr $ unStr
+        10 -> Method  `get2` unClassRef $ unDescRef
+        12 -> DescRef <$> (Desc `get2` unStr  $ unStr)
 
         _  -> error $ "Unknown constant pool entry-tag: " ++ show tag
 
