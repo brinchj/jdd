@@ -1,24 +1,33 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving #-}
 
-module Parser where
+module Parser
+       (
+         parseClassFile
+       , test
+       ) where
 
 import Prelude hiding (take)
-
 
 import Control.Monad
 import Control.Monad.Trans
 import qualified Control.Monad.State.Strict as ST
+import qualified Control.Monad.Error as E
 
 import Control.Applicative ((<$>), (<*>))
 
+import Text.Parsec.ByteString
+import Text.Parsec.Char
+import Text.Parsec.Combinator
+import Text.Parsec
 
-import qualified Data.ByteString as B
+
+import qualified Data.ByteString.Char8 as B
 import qualified Data.Map as M
 
-import Data.Maybe
+import Data.Maybe (fromMaybe)
+import Data.Char (ord)
 
 
-import Data.Attoparsec.ByteString
 
 data Version = Version { getMajor :: Integer, getMinor :: Integer}
              deriving Show
@@ -57,7 +66,7 @@ data AttributeBlock = AttrBlock
 
 -- Parse 1-byte, 2-byte, 4-byte and 8-byte unsigned int (big-endian)
 u1, u2, u4, u8 :: Parser Integer
-u1 = fromIntegral <$> anyWord8
+u1 = fromIntegral . ord <$> anyToken
 
 u2 = do
   a <- u1
@@ -98,28 +107,25 @@ versionP = Version <$> u2 <*> u2
 
 -- Parse a string with 2-byte length prefix
 string2P :: Parser B.ByteString
-string2P = take =<< fromIntegral <$> u2
+string2P = B.pack <$> (flip replicateM anyChar =<< fromIntegral <$> u2)
 
 -- Parse constant pool
-constantPoolP :: Parser (M.Map Integer Constant)
+type ConstantPool = M.Map Integer Constant
+constantPoolP :: Parser ConstantPool
 constantPoolP = do
-  maxID <- u2
-  ST.execStateT (entriesP $ maxID - 1) M.empty
+  maxID <- fromIntegral <$> u2
+  ST.execStateT (E.runErrorT $ entriesP $ maxID - 1) M.empty
   where
-    entriesP :: Integer -> ST.StateT (M.Map Integer Constant) Parser ()
-    entriesP 0 = return ()
-    entriesP n = do
-      tag <- lift u1
-      case tag of
-        0 -> return ()
-        _ -> do constant <- convertTag tag
-                ST.modify $
-                  \m -> M.insert (fromIntegral $ M.size m + 1) constant m
-                entriesP $ n - 1
+    entriesP :: Int -> E.ErrorT String (ST.StateT ConstantPool Parser) ()
+    entriesP = flip replicateM_ entryP
 
-    convertTag :: Integer -> ST.StateT (M.Map Integer Constant) Parser Constant
+    entryP = do
+      constant <- convertTag =<< (lift $ lift u1)
+      ST.modify $ \m -> M.insert (fromIntegral $ M.size m + 1) constant m
+
     convertTag tag =
       case tag of
+        0  -> fail "EOF"
         1  -> Str              <$^> string2P
         3  -> SignedInt        <$^> s4
         5  -> Long             <$^> s8
@@ -131,11 +137,10 @@ constantPoolP = do
         _  -> error $ "Unknown constant pool entry-tag: " ++ show tag
 
       where
-        f <$^> v = f <$> lift v
+        f <$^> v = f <$> (lift $ lift v)
 
-        get1 :: ST.StateT (M.Map Integer Constant) Parser Constant
         get1 = do
-          idx <- lift u2
+          idx <- (lift $ lift u2)
           ST.gets $ fromMaybe (error "invalid id") . M.lookup idx
 
         get2 f ma mb = do
@@ -164,7 +169,7 @@ blockP cp = do
 
 attributeP cp = do
   Str name <- cpLookup cp <$> u2
-  body <- (take . fromIntegral) =<< u4
+  body <- B.pack <$> (flip replicateM anyChar =<< fromIntegral <$> u4)
   return $ Attr name body
 
 
