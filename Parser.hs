@@ -20,12 +20,12 @@ import Data.Maybe
 
 import Data.Attoparsec.ByteString
 
-data Version = Version { getMajor :: Int, getMinor :: Int}
+data Version = Version { getMajor :: Integer, getMinor :: Integer}
              deriving Show
 
 data Constant = Str
                 { unStr :: B.ByteString }
-              | SignedInt Int
+              | SignedInt Integer
               | Long Integer
               | ClassRef
                 { classPath :: B.ByteString }
@@ -44,7 +44,7 @@ data Attribute = Attr
                deriving Show
 
 data AttributeBlock = AttrBlock
-                      { blockFlags :: Int
+                      { blockFlags :: Integer
                       , blockName  :: B.ByteString
                       , blockDesc  :: B.ByteString
                       , blockAttrs :: [Attribute]
@@ -52,7 +52,7 @@ data AttributeBlock = AttrBlock
                     deriving Show
 
 -- Parse 1-byte, 2-byte, 4-byte and 8-byte unsigned int (big-endian)
-u1, u2, u4 :: Parser Int
+u1, u2, u4 :: Parser Integer
 u1 = fromIntegral <$> anyWord8
 
 u2 = do
@@ -96,22 +96,22 @@ string2P :: Parser B.ByteString
 string2P = take =<< fromIntegral <$> u2
 
 -- Parse constant pool
-constantPoolP :: Parser (M.Map Int Constant)
+constantPoolP :: Parser (M.Map Integer Constant)
 constantPoolP = do
   maxID <- u2
   ST.execStateT (entriesP $ maxID - 1) M.empty
   where
-    entriesP :: Int -> ST.StateT (M.Map Int Constant) Parser ()
+    entriesP :: Integer -> ST.StateT (M.Map Integer Constant) Parser ()
     entriesP 0 = return ()
     entriesP n = do
       tag <- lift u1
       case tag of
         0 -> return ()
         _ -> do const <- convertTag tag
-                ST.modify $ \m -> M.insert (M.size m + 1) const m
+                ST.modify $ \m -> M.insert (fromIntegral $ M.size m + 1) const m
                 entriesP $ n - 1
 
-    convertTag :: Int -> ST.StateT (M.Map Int Constant) Parser Constant
+    convertTag :: Integer -> ST.StateT (M.Map Integer Constant) Parser Constant
     convertTag tag =
       case tag of
         1  -> Str              <$^> string2P
@@ -127,7 +127,7 @@ constantPoolP = do
       where
         f <$^> v = f <$> lift v
 
-        get1 :: ST.StateT (M.Map Int Constant) Parser Constant
+        get1 :: ST.StateT (M.Map Integer Constant) Parser Constant
         get1 = do
           idx <- lift u2
           ST.gets $ fromMaybe (error "invalid id") . M.lookup idx
@@ -142,7 +142,7 @@ cpLookup cp i = fromMaybe (error $ "invalid id: " ++ show i) $ M.lookup i cp
 
 
 many2 f = do
-  count <- u2
+  count <- fromIntegral <$> u2
   replicateM count f
 
 
@@ -157,7 +157,7 @@ blockP cp = do
 
 attributeP cp = do
   Str name <- cpLookup cp <$> u2
-  body <- take =<< u4
+  body <- (take . fromIntegral) =<< u4
   return $ Attr name body
 
 
