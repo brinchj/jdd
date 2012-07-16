@@ -120,7 +120,7 @@ constantPoolP = do
     entriesP = flip replicateM_ entryP
 
     entryP = do
-      constant <- convertTag =<< (lift $ lift u1)
+      constant <- convertTag =<< lift (lift u1)
       ST.modify $ \m -> M.insert (fromIntegral $ M.size m + 1) constant m
 
     convertTag tag =
@@ -137,10 +137,10 @@ constantPoolP = do
         _  -> error $ "Unknown constant pool entry-tag: " ++ show tag
 
       where
-        f <$^> v = f <$> (lift $ lift v)
+        f <$^> v = f <$> lift (lift v)
 
         get1 = do
-          idx <- (lift $ lift u2)
+          idx <- lift $ lift u2
           ST.gets $ fromMaybe (error "invalid id") . M.lookup idx
 
         get2 f ma mb = do
