@@ -56,7 +56,7 @@ data AttributeBlock = AttrBlock
                     deriving Show
 
 -- Parse 1-byte, 2-byte, 4-byte and 8-byte unsigned int (big-endian)
-u1, u2, u4 :: Parser Integer
+u1, u2, u4, u8 :: Parser Integer
 u1 = fromIntegral <$> anyWord8
 
 u2 = do
@@ -69,7 +69,6 @@ u4 = do
   b <- u2
   return $ (a * 2^16) + b
 
-u8 :: Parser Integer
 u8 = do
   a <- fromIntegral <$> u4
   b <- fromIntegral <$> u4
@@ -77,9 +76,11 @@ u8 = do
 
 
 -- Parse 1-byte, 2-byte, 4-byte, 8-byte signed int (two complement, big-endian)
+makeSigned :: Int -> Integer -> Integer
 makeSigned bits n | n > 2 ^ (bits - 1) = n + (2 ^ bits)
                   | otherwise          = n
 
+s1, s2, s4, s8 :: Parser Integer
 s1 = makeSigned 8  <$> u1
 s2 = makeSigned 16 <$> u2
 s4 = makeSigned 32 <$> u4
@@ -111,8 +112,9 @@ constantPoolP = do
       tag <- lift u1
       case tag of
         0 -> return ()
-        _ -> do const <- convertTag tag
-                ST.modify $ \m -> M.insert (fromIntegral $ M.size m + 1) const m
+        _ -> do constant <- convertTag tag
+                ST.modify $
+                  \m -> M.insert (fromIntegral $ M.size m + 1) constant m
                 entriesP $ n - 1
 
     convertTag :: Integer -> ST.StateT (M.Map Integer Constant) Parser Constant
@@ -145,9 +147,10 @@ constantPoolP = do
 cpLookup cp i = fromMaybe (error $ "invalid id: " ++ show i) $ M.lookup i cp
 
 
-many2 f = do
-  count <- fromIntegral <$> u2
-  replicateM count f
+many2 :: Parser a -> Parser [a]
+many2 a = do
+  n <- fromIntegral <$> u2
+  replicateM n a
 
 
 interfacesP = undefined
@@ -184,9 +187,11 @@ classFile = do
   fields  <- many2 $ blockP cp
   methods <- many2 $ blockP cp
 
-  return (cp, this, supr, ilen, fields, methods)
+  return (version, access, cp, this, supr, ilen, fields, methods)
 
 
+parseClassFile :: B.ByteString -> IO ()
 parseClassFile = parseTest classFile
 
+test :: IO ()
 test = B.readFile "aa.class" >>= parseClassFile
