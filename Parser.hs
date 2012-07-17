@@ -1,4 +1,7 @@
-{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings
+           , GeneralizedNewtypeDeriving
+           , ScopedTypeVariables
+ #-}
 
 module Parser
        (
@@ -131,24 +134,23 @@ type ConstantPool = M.Map Integer Constant
 constantPoolP :: ClassParser ()
 constantPoolP = do
   maxID <- fromIntegral <$> u2
-  entriesP $ maxID - 1
+  void $ E.runErrorT $ entriesP $ maxID - 1
   where
-    -- entriesP :: Int -> E.ErrorT String (ClassParser [Constant]) ()
     entriesP = flip replicateM_ entryP
 
     entryP = do
-      constant <- convertTag =<< u1
-      ST.modify $ \cf ->
+      constant <- convertTag =<< lift u1
+      lift $ ST.modify $ \cf ->
         cf { classConstants = insert constant $ classConstants cf }
       where insert c m = M.insert (fromIntegral $ M.size m + 1) c m
 
-
     convertTag tag =
       case tag of
-        0  -> E.fail "EOF"  -- TODO: Correct this behavior
-        1  -> Str              <$> string2P
-        3  -> SignedInt        <$> s4
-        5  -> Long             <$> s8
+        0  -> E.throwError ("EOF" :: String)
+
+        1  -> Str              <$^> string2P
+        3  -> SignedInt        <$^> s4
+        5  -> Long             <$^> s8
         7  -> ClassRef . Class . unStr <$> get1
 
         10 -> Method  `get2` unClassRef $ unDescRef
@@ -157,9 +159,11 @@ constantPoolP = do
         _  -> error $ "Unknown constant pool entry-tag: " ++ show tag
 
       where
+        f <$^> g = f <$> lift g
+
         get1 = do
-          idx <- u2
-          ST.gets $ fromMaybe (error "invalid id") .
+          idx <- lift u2
+          lift $ ST.gets $ fromMaybe (error "invalid id") .
             M.lookup idx . classConstants
 
         get2 f ma mb = do
