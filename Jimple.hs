@@ -11,9 +11,7 @@ data JimpleMethod = Method
 
 data IdentStmt = IStmt Local Ref
 
-data LocalDecl = LocalDecl { declType :: Int
-                           , declName :: String }
-
+data LocalDecl = LocalDecl Type String
 
 data Except = Except Ref Label Label Label
 
