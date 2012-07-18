@@ -214,33 +214,37 @@ methodsP :: ClassParser ()
 methodsP = addBlocksP $ \ms cf -> cf { classMethods = ms }
 
 
+modifyM :: ClassParser v -> (v -> ClassFile -> ClassFile) -> ClassParser ()
+modifyM vm f = do
+  v <- vm
+  ST.modify $ \cf -> f v cf
+
+
 classFile :: ClassParser ()
 classFile = do
-  _ <- magicNumberP
-  version <- versionP
+  -- Skip the magic number
+  void magicNumberP
+
+  -- version
+  modifyM versionP $ \v cf -> cf { classVersion = v }
 
   -- Parse and update constant pool
   constantPoolP
 
-  flags <- u2
+  -- flags
+  modifyM u2 $ \f cf -> cf { classFlags = f }
 
-  this <- cpLookup =<< u2
-  supr <- cpLookup =<< u2
+  -- this and super
+  modifyM (cpLookup =<< u2) $ \t cf -> cf { classThis  = t }
+  modifyM (cpLookup =<< u2) $ \s cf -> cf { classSuper = s }
 
-  -- update version, access, this and super
-  ST.modify $ \cf ->
-    cf { classVersion = version
-       , classFlags = flags
-       , classThis = this
-       , classSuper = supr }
-
-  ilen <- u2 -- interfaces
+  -- interfaces
+  ilen <- u2
   when (ilen > 0) $ error "Interfaces not yet supported"
 
+  -- fields and methods
   fieldsP
   methodsP
-
-  return ()
 
 
 parseClassFile :: B.ByteString -> ClassFile
