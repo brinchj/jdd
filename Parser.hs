@@ -53,17 +53,19 @@ data Constant = SignedInt Integer
                 , methodDesc  :: Desc }
               deriving Show
 
-data Attribute = Attr
-                 { attrName :: B.ByteString
-                 , attrBody :: B.ByteString
-                 }
-               deriving Show
+-- data Attribute = Attr
+--                  { attrName :: B.ByteString
+--                  , attrBody :: B.ByteString
+--                  }
+--                deriving Show
+
+type Attributes = M.Map B.ByteString B.ByteString
 
 data AttributeBlock = AttrBlock
                       { blockFlags :: Integer
                       , blockName  :: B.ByteString
                       , blockDesc  :: B.ByteString
-                      , blockAttrs :: [Attribute]
+                      , blockAttrs :: Attributes
                       }
                     deriving Show
 
@@ -75,8 +77,8 @@ data ClassFile = ClassFile
                  , classThis       :: Constant
                  , classSuper      :: Constant
                  , classInterfaces :: [AttributeBlock]
-                 , classFields     :: [AttributeBlock]
-                 , classMethods    :: [AttributeBlock]
+                 , classFields     :: M.Map B.ByteString AttributeBlock
+                 , classMethods    :: M.Map B.ByteString AttributeBlock
                  }
                deriving Show
 
@@ -191,20 +193,22 @@ blockP = do
   flags <- u2
   Str name <- cpLookup =<< u2
   Str desc <- cpLookup =<< u2
-  as <- many2 attributeP
-  return $ AttrBlock flags name desc as
+  attrs <- many2 attributeP
+  return $ AttrBlock flags name desc $ M.fromList attrs
 
-addBlocksP :: ([AttributeBlock] -> ClassFile -> ClassFile) -> ClassParser ()
+addBlocksP :: (M.Map B.ByteString AttributeBlock -> ClassFile -> ClassFile)
+              -> ClassParser ()
 addBlocksP f = do
   blocks <- many2 blockP
-  ST.modify $ \cf -> f blocks cf
+  let blockMap = M.fromList [ (blockName b, b) | b <- blocks ]
+  ST.modify $ \cf -> f blockMap cf
 
 
-attributeP :: ClassParser Attribute
+attributeP :: ClassParser (B.ByteString, B.ByteString)
 attributeP = do
   Str name <- cpLookup =<< u2
   body <- B.pack <$> (flip replicateM anyChar =<< fromIntegral <$> u4)
-  return $ Attr name body
+  return (name, body)
 
 
 fieldsP :: ClassParser ()
@@ -252,8 +256,8 @@ parseClassFile bs = ST.execState (runPT classFile () "" bs) emptyST
   where
     emptyST = ClassFile { classConstants  = M.empty
                         , classInterfaces = []
-                        , classMethods    = []
-                        , classFields     = []
+                        , classMethods    = M.empty
+                        , classFields     = M.empty
                         }
 
 test :: IO ()
