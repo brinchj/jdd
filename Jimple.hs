@@ -19,6 +19,7 @@ data Except = Except Ref Label Label Label
 data Stmt = S_breakpoint
           | S_assign Variable Value
           | S_enterMonitor Im
+          | S_exitMonitor  Im
           | S_goto Label
           | S_if Expression Label   -- Only condition expressions are allowed
           | S_invoke Expression
@@ -31,7 +32,10 @@ data Stmt = S_breakpoint
           | S_throw Im
 
 
-data Value = Value Integer -- TODO: What does value contain?
+data Value = VConst Constant
+           | VLocal Local
+           | VExpr  Expression
+
 data Label = Label String
 
 data Im = IConst Constant
@@ -45,7 +49,7 @@ data Constant = C_double Double
               | C_string B.ByteString
               | C_null
 
-data Variable = VRef Ref | VLocal Local
+data Variable = VarRef Ref | VarLocal Local
 
 data RValue = RV_ref   Ref
             | RV_const Constant
