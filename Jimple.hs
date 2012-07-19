@@ -158,7 +158,7 @@ byteCodeP = do
         do sv <- getStackVar
            append $ S_assign sv $ VLocal $ VarLocal $ Local "l0"
 
-      _ -> error $ "Unknown code: " ++ (show $ ord code)
+      _ -> error $ "Unknown code: " ++ show (ord code)
 
     getStackVar = getVar "s"
     -- getLocalVar = getVar "l"
@@ -167,7 +167,7 @@ byteCodeP = do
       ST.modify $ \(m, _) -> (m, xs)
       return $ VarLocal $ Local $ p ++ show x
 
-    append cmd = do
+    append cmd =
       ST.modify $ \(m, l) ->
         (m { methodStmts = methodStmts m ++ [(Nothing, cmd)] }, l)
 
