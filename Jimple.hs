@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Jimple where
 
 import qualified Data.ByteString.Char8 as B
@@ -144,24 +142,24 @@ data Type = T_int | T_long | T_float | T_double | T_ref | T_addr | T_void
 
 byteCodeP = do
   code <- anyToken
-  case code of
-    '\0' -> byteCodeP -- NOP
-    '\1' -> -- @null@
-      do v <- getStackVar
-         append $ S_assign v $ VConst C_null
-         byteCodeP
-    _ | code <= '\8' -> -- int constants -1 to 5
-      do v <- getStackVar
-         append $ S_assign v $ VConst $
-           C_int $ fromIntegral $ ord code - 3
-         byteCodeP
-    '\42' -> -- object ref from local variable 0
-      do sv <- getStackVar
-         append $ S_assign sv $ VLocal $ VarLocal $ Local "l0"
-         byteCodeP
+  parse code >> byteCodeP
 
-    _ -> error $ "Unknown code: " ++ (show $ ord code)
   where
+    parse code = case code of
+      '\0' -> return () -- NOP
+      '\1' -> -- @null@
+        do v <- getStackVar
+           append $ S_assign v $ VConst C_null
+      _ | code <= '\8' -> -- int constants -1 to 5
+        do v <- getStackVar
+           append $ S_assign v $ VConst $
+             C_int $ fromIntegral $ ord code - 3
+      '\42' -> -- object ref from local variable 0
+        do sv <- getStackVar
+           append $ S_assign sv $ VLocal $ VarLocal $ Local "l0"
+
+      _ -> error $ "Unknown code: " ++ (show $ ord code)
+
     getStackVar = getVar "s"
     -- getLocalVar = getVar "l"
     getVar p = do
