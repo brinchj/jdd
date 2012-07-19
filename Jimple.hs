@@ -1,13 +1,30 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Jimple where
 
 import qualified Data.ByteString.Char8 as B
 
 
+import Data.Char
+
+import Text.Parsec.ByteString
+import Text.Parsec.Char
+import Text.Parsec.Combinator
+import Text.Parsec
+
+import Control.Monad
+import Control.Monad.State as ST
+import Control.Applicative
+
+import Parser (parseClassFile)
+
+
+
 data JimpleMethod = Method
-                    [LocalDecl]
-                    [IdentStmt]
-                    [(Maybe Label, Stmt)]
-                    [Except]
+                    { methodLocalDecls :: [LocalDecl]
+                    , methodIdentStmts :: [IdentStmt]
+                    , methodStmts      :: [(Maybe Label, Stmt)]
+                    , methodExcepts    :: [Except] }
                   deriving Show
 
 data IdentStmt = IStmt Local Ref
@@ -38,7 +55,7 @@ data Stmt = S_breakpoint
 
 
 data Value = VConst Constant
-           | VLocal Local
+           | VLocal Variable
            | VExpr  Expression
            deriving Show
 
@@ -122,3 +139,45 @@ data MethodSignature = MethodSig String [Type] Type
 
 data Type = T_int | T_long | T_float | T_double | T_ref | T_addr | T_void
           deriving Show
+
+
+
+byteCodeP = do
+  code <- anyToken
+  case code of
+    '\0' -> byteCodeP -- NOP
+    '\1' -> -- @null@
+      do v <- getStackVar
+         append $ S_assign v $ VConst C_null
+         byteCodeP
+    _ | code <= '\8' -> -- int constants -1 to 5
+      do v <- getStackVar
+         append $ S_assign v $ VConst $
+           C_int $ fromIntegral $ ord code - 3
+         byteCodeP
+    '\42' -> -- object ref from local variable 0
+      do sv <- getStackVar
+         append $ S_assign sv $ VLocal $ VarLocal $ Local "l0"
+         byteCodeP
+
+    _ -> error $ "Unknown code: " ++ (show $ ord code)
+  where
+    getStackVar = getVar "s"
+    -- getLocalVar = getVar "l"
+    getVar p = do
+      x:xs <- gets snd
+      ST.modify $ \(m, _) -> (m, xs)
+      return $ VarLocal $ Local $ p ++ show x
+
+    append cmd = do
+      ST.modify $ \(m, l) ->
+        (m { methodStmts = methodStmts m ++ [(Nothing, cmd)] }, l)
+
+parseJimple cf bs = fst $ ST.execState (runPT byteCodeP () "" bs)
+                    (Method [] [] [] [], [1..])
+
+
+test = do
+  cf <- parseClassFile <$> B.readFile "aa.class"
+  print cf
+  print $ parseJimple cf "\NUL\SOH\NUL\SOH\NUL\NUL\NUL\ENQ*\183\NUL\b\177\NUL\NUL\NUL\NUL"
