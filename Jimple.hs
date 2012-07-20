@@ -163,11 +163,11 @@ byteCodeP = do
 
       -- object ref from local variable 0 to 3
       _ | 42 <= code && code <= 45 ->
-        void $ push $! VLocal $! VarLocal $! Local $! "l" ++ show (code - 42)
+        void $ push $! VLocal $! VarLocal $! Local $! 'l' : show (code - 42)
 
       -- pop and pop2
       57 -> void pop
-      58 -> void $ pop >> pop
+      58 -> void $ replicateM 2 pop
 
       -- dup
       59 -> do a <- pop
