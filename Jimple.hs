@@ -4,6 +4,7 @@ import qualified Data.ByteString.Char8 as B
 
 
 import Data.Char
+import qualified Data.Map as M
 
 import Text.Parsec.ByteString
 import Text.Parsec.Char
@@ -12,9 +13,10 @@ import Text.Parsec
 
 import Control.Monad
 import Control.Monad.State as ST
+import Control.Monad.Reader as R
 import Control.Applicative
 
-import Parser (parseClassFile)
+import qualified Parser as CF
 
 
 
@@ -183,8 +185,10 @@ byteCodeP = do
 
       183 -> do a <- ord <$> anyToken
                 b <- ord <$> anyToken
-                let idx = a * 8 + b
-                error $ show idx
+                let idx = fromIntegral $ a * 8 + b
+                Just (CF.Method path (CF.Desc name tpe)) <-
+                         M.lookup idx <$> R.asks CF.classConstants
+                error $ show (path, name, tpe)
 
       _ -> fail $ "Unknown code: " ++ show code
 
@@ -207,13 +211,14 @@ byteCodeP = do
       ST.modify $ \(m, l) ->
         (m { methodStmts = methodStmts m ++ [(Nothing, cmd)] }, l)
 
-parseJimple cf bs = fst $ ST.execState (runPT byteCodeP () "" bs)
+parseJimple cf bs = fst $
+                    ST.execState (R.runReaderT (runPT byteCodeP () "" bs) cf)
                     (Method [] [] [] [],
                      JimpleST stackVars [])
   where
     stackVars = map (VarLocal . Local . ("s"++) . show) [1..]
 
 test = do
-  cf <- parseClassFile <$> B.readFile "aa.class"
+  cf <- CF.parseClassFile <$> B.readFile "aa.class"
   print cf
   print $ parseJimple cf "\NUL\STX\NUL\STX\NUL\NUL\NUL\ACK*+\183\NUL\b\177\NUL\NUL\NUL\NUL"
