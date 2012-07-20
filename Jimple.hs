@@ -145,29 +145,30 @@ data JimpleST = JimpleST { jimpleFree  :: [Variable]
 
 byteCodeP = do
   code <- anyToken
-  parse code >> byteCodeP
+  parse (ord code) >> byteCodeP
 
   where
     parse code = case code of
        -- NOP, needed to maintain correct line count for goto
-      '\0' -> append S_nop
+      0 -> append S_nop
 
        -- @null@
-      '\1' -> void $ push $ VConst C_null
+      1 -> void $ push $! VConst C_null
 
       -- int constants -1 to 5
-      _ | code <= '\8' -> void $ push $
-                          VConst $ C_int $ fromIntegral $ ord code - 3
+      _ | 2 <= code && code <= 8 ->
+        void $ push $! VConst $! C_int $! fromIntegral $! code - 3
 
-      -- object ref from local variable 0
-      '\42' -> void $ push $ VLocal $ VarLocal $ Local "l0"
+      -- object ref from local variable 0 to 3
+      _ | 42 <= code && code <= 45 ->
+        void $ push $! VLocal $! VarLocal $! Local $! "l" ++ show (code - 42)
 
       -- add two ints
-      '\96' -> do a <- pop
-                  b <- pop
-                  void $ push $ VExpr $ E_add (ILocal a) (ILocal b)
+      96 -> do a <- pop
+               b <- pop
+               void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
 
-      _ -> fail $ "Unknown code: " ++ show (ord code)
+      _ -> fail $ "Unknown code: " ++ show code
 
     -- pop a value from the stack (return first stack variable)
     pop = do
@@ -179,8 +180,7 @@ byteCodeP = do
     push v = do
       (x:xs) <- ST.gets $ jimpleFree . snd
       ST.modify $ \(m, j) -> (m, j { jimpleStack = x : jimpleStack j
-                                   , jimpleFree  = xs }
-                             )
+                                   , jimpleFree  = xs                })
       append $! S_assign x $! v
       return x
 
@@ -198,4 +198,4 @@ parseJimple cf bs = fst $ ST.execState (runPT byteCodeP () "" bs)
 test = do
   cf <- parseClassFile <$> B.readFile "aa.class"
   print cf
-  print $ parseJimple cf "\NUL\SOH\NUL\SOH\NUL\NUL\NUL\ENQ*\183\NUL\b\177\NUL\NUL\NUL\NUL"
+  print $ parseJimple cf "\NUL\STX\NUL\STX\NUL\NUL\NUL\ACK*+\183\NUL\b\177\NUL\NUL\NUL\NUL"
