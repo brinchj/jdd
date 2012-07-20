@@ -167,26 +167,20 @@ byteCodeP = do
 
       -- pop and pop2
       57 -> void pop
-      58 -> void $ replicateM 2 pop
+      58 -> replicateM_ 2 pop
 
-      -- dup
-      59 -> do a <- pop
-               mapM_ (push . VLocal) [a, a]
+      -- dup: a -> a, a
+      59 -> mapM_ (push . VLocal) =<< replicate 2 <$> pop
 
-      -- swap
-      95 -> do a <- pop
-               b <- pop
-               mapM_ (push . VLocal) [a, b]
+      -- swap: a, b -> b, a
+      95 -> mapM_ (push . VLocal) =<< replicateM 2 pop
 
       -- add two ints
-      96 -> do a <- pop
-               b <- pop
+      96 -> do (a, b) <- pop2
                void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
 
       -- invoke special
-      183 -> do a <- ord <$> anyToken
-                b <- ord <$> anyToken
-                let idx = fromIntegral $ a * 8 + b
+      183 -> do idx <- u2
                 Just (CF.Method path (CF.Desc name tpe)) <-
                          M.lookup idx <$> R.asks CF.classConstants
                 error $ show (path, name, tpe)
@@ -199,6 +193,12 @@ byteCodeP = do
       (x:xs) <- ST.gets $ jimpleStack . snd
       ST.modify $ \(m, j) -> (m, j { jimpleStack = xs })
       return x
+
+    -- pop two values
+    pop2 = do
+      a <- pop
+      b <- pop
+      return $! (a, b)
 
     -- push value to stack (assign to next stack variable)
     push v = do
@@ -213,12 +213,24 @@ byteCodeP = do
       ST.modify $ \(m, l) ->
         (m { methodStmts = methodStmts m ++ [(Nothing, cmd)] }, l)
 
-parseJimple cf bs = fst $
-                    ST.execState (R.runReaderT (runPT byteCodeP () "" bs) cf)
-                    (Method [] [] [] [],
-                     JimpleST stackVars [])
+    -- read 1-byte int
+    u1 = (fromIntegral . ord) <$> anyToken
+
+    -- read 2-byte int
+    u2 = do a <- u1
+            b <- u2
+            return $! a * 8 + b
+
+
+parseJimple cf bs =
+  go $! ST.runState (R.runReaderT (runPT byteCodeP () "" bs) cf)
+        (Method [] [] [] [],
+         JimpleST stackVars [])
   where
     stackVars = map (VarLocal . Local . ("s"++) . show) [1..]
+
+    go (Left err, (meth, jst)) = (Just err, meth)
+    go (Right _,  (meth, jst)) = (Nothing,  meth)
 
 test = do
   cf <- CF.parseClassFile <$> B.readFile "aa.class"
