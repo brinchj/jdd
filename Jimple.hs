@@ -61,7 +61,7 @@ data Label = Label String
            deriving Show
 
 data Im = IConst Constant
-        | ILocal Local
+        | ILocal Variable
         deriving Show
 
 data Local = Local String
@@ -140,40 +140,60 @@ data Type = T_int | T_long | T_float | T_double | T_ref | T_addr | T_void
 
 
 
+data JimpleST = JimpleST { jimpleFree  :: [Variable]
+                         , jimpleStack :: [Variable] }
+
 byteCodeP = do
   code <- anyToken
   parse code >> byteCodeP
 
   where
     parse code = case code of
-      '\0' -> return () -- NOP
-      '\1' -> -- @null@
-        do v <- getStackVar
-           append $ S_assign v $ VConst C_null
-      _ | code <= '\8' -> -- int constants -1 to 5
-        do v <- getStackVar
-           append $ S_assign v $ VConst $
-             C_int $ fromIntegral $ ord code - 3
-      '\42' -> -- object ref from local variable 0
-        do sv <- getStackVar
-           append $ S_assign sv $ VLocal $ VarLocal $ Local "l0"
+       -- NOP, needed to maintain correct line count for goto
+      '\0' -> append S_nop
 
-      _ -> error $ "Unknown code: " ++ show (ord code)
+       -- @null@
+      '\1' -> void $ push $ VConst C_null
 
-    getStackVar = getVar "s"
-    -- getLocalVar = getVar "l"
-    getVar p = do
-      x:xs <- gets snd
-      ST.modify $ \(m, _) -> (m, xs)
-      return $ VarLocal $ Local $ p ++ show x
+      -- int constants -1 to 5
+      _ | code <= '\8' -> void $ push $
+                          VConst $ C_int $ fromIntegral $ ord code - 3
 
+      -- object ref from local variable 0
+      '\42' -> void $ push $ VLocal $ VarLocal $ Local "l0"
+
+      -- add two ints
+      '\96' -> do a <- pop
+                  b <- pop
+                  void $ push $ VExpr $ E_add (ILocal a) (ILocal b)
+
+      _ -> fail $ "Unknown code: " ++ show (ord code)
+
+    -- pop a value from the stack (return first stack variable)
+    pop = do
+      (x:xs) <- ST.gets $ jimpleStack . snd
+      ST.modify $ \(m, j) -> (m, j { jimpleStack = xs })
+      return x
+
+    -- push value to stack (assign to next stack variable)
+    push v = do
+      (x:xs) <- ST.gets $ jimpleFree . snd
+      ST.modify $ \(m, j) -> (m, j { jimpleStack = x : jimpleStack j
+                                   , jimpleFree  = xs }
+                             )
+      append $! S_assign x $! v
+      return x
+
+    -- append a label-less statement to code
     append cmd =
       ST.modify $ \(m, l) ->
         (m { methodStmts = methodStmts m ++ [(Nothing, cmd)] }, l)
 
 parseJimple cf bs = fst $ ST.execState (runPT byteCodeP () "" bs)
-                    (Method [] [] [] [], [1..])
-
+                    (Method [] [] [] [],
+                     JimpleST stackVars [])
+  where
+    stackVars = map (VarLocal . Local . ("s"++) . show) [1..]
 
 test = do
   cf <- parseClassFile <$> B.readFile "aa.class"
