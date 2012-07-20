@@ -183,6 +183,7 @@ byteCodeP = do
                b <- pop
                void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
 
+      -- invoke special
       183 -> do a <- ord <$> anyToken
                 b <- ord <$> anyToken
                 let idx = fromIntegral $ a * 8 + b
@@ -190,6 +191,7 @@ byteCodeP = do
                          M.lookup idx <$> R.asks CF.classConstants
                 error $ show (path, name, tpe)
 
+      -- my head just exploded
       _ -> fail $ "Unknown code: " ++ show code
 
     -- pop a value from the stack (return first stack variable)
