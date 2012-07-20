@@ -163,10 +163,28 @@ byteCodeP = do
       _ | 42 <= code && code <= 45 ->
         void $ push $! VLocal $! VarLocal $! Local $! "l" ++ show (code - 42)
 
+      -- pop and pop2
+      57 -> void pop
+      58 -> void $ pop >> pop
+
+      -- dup
+      59 -> do a <- pop
+               mapM_ (push . VLocal) [a, a]
+
+      -- swap
+      95 -> do a <- pop
+               b <- pop
+               mapM_ (push . VLocal) [a, b]
+
       -- add two ints
       96 -> do a <- pop
                b <- pop
                void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
+
+      183 -> do a <- ord <$> anyToken
+                b <- ord <$> anyToken
+                let idx = a * 8 + b
+                error $ show idx
 
       _ -> fail $ "Unknown code: " ++ show code
 
