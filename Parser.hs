@@ -12,6 +12,7 @@ module Parser
        , ClassFile(..)
        , Desc(..)
        , Class(..)
+       , makeSigned
        , test
        ) where
 
@@ -117,7 +118,7 @@ u8 = do
 
 -- Parse 1-byte, 2-byte, 4-byte, 8-byte signed int (two complement, big-endian)
 makeSigned :: Int -> Integer -> Integer
-makeSigned bits n | n > 2 ^ (bits - 1) = n + (2 ^ bits)
+makeSigned bits n | n > 2 ^ (bits - 1) = n - (2 ^ bits)
                   | otherwise          = n
 
 s1, s2, s4, s8 :: ClassParser Integer
