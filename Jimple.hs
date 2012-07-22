@@ -242,6 +242,7 @@ byteCodeP = do
                 params <- replicateM (length $ methodParams method) popI
                 append $! S_invoke (I_special objRef) method params
 
+      -- new object ref
       187 -> do Just (CF.ClassRef path) <- askCP
                 void $ push $! VExpr $! E_new $! R_object path
 
