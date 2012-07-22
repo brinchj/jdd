@@ -188,7 +188,7 @@ byteCodeP = do
     Just code -> parse (ord code) >> byteCodeP
 
   where
-    parse code = case (traceShow code code) of
+    parse code = case traceShow code code of
        -- NOP, needed to maintain correct line count for goto
       0 -> append S_nop
 
