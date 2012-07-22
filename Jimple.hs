@@ -59,7 +59,7 @@ data Value = VConst Constant
            | VExpr  Expression
            deriving Show
 
-data Label = Label String
+data Label = Label Integer
            deriving Show
 
 data Im = IConst Constant
@@ -228,6 +228,14 @@ byteCodeP = do
       96 -> do (a, b) <- pop2
                void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
 
+      -- if
+      159 -> if2 E_eq -- ==
+      160 -> if2 E_ne -- /=
+      161 -> if2 E_lt -- <
+      162 -> if2 E_ge -- >=
+      163 -> if2 E_gt -- >
+      164 -> if2 E_le -- <=
+
       -- areturn
       176 -> do obj <- pop
                 append $! S_return $! ILocal obj
@@ -308,6 +316,14 @@ byteCodeP = do
     methodP = do
       Just (CF.Method path (CF.Desc name tpe)) <- askCP
       return $! methodSig' tpe $! MethodSig path name
+
+    -- general version of if for binary op
+    if2 op = do
+      a <- popI
+      b <- popI
+      offset <- u2
+      append $! S_if (a `op` b) $! Label offset
+
 
 
 parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod)
