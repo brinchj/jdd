@@ -204,6 +204,14 @@ byteCodeP = do
       _ | code `elem` [0x02..0x08] ->
         void $ push $! VConst $! C_int $! fromIntegral $! code - 3
 
+      -- long constants
+      0x09 -> void $ push $! VConst $! C_long 0
+      0x0a -> void $ push $! VConst $! C_long 1
+
+      -- float constants
+      _ | code `elem` [0x0b, 0x0c, 0x0d] ->
+        void $ push $! VConst $! C_float $! fromIntegral $! code - 0x0b
+
       -- double constants
       0x0e -> void $ push $! VConst $! C_double 0.0
       0x0f -> void $ push $! VConst $! C_double 1.0
