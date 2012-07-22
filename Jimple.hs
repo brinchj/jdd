@@ -221,6 +221,9 @@ byteCodeP = do
       176 -> do obj <- pop
                 append $! S_return $! ILocal obj
 
+      -- return void
+      177 -> append $! S_returnVoid
+
       -- invoke special
       183 -> do method <- methodP
                 objRef <- popI
