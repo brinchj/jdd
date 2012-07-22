@@ -3,6 +3,8 @@ module Jimple where
 import qualified Data.ByteString.Char8 as B
 
 import Debug.Trace
+
+import Numeric
 import Data.Char
 import qualified Data.Map as M
 
@@ -189,7 +191,7 @@ byteCodeP = do
     Just code -> parse (ord code) >> byteCodeP
 
   where
-    parse code = case traceShow code code of
+    parse code = case trace ("0x" ++ showHex code "") code of
        -- NOP, needed to maintain correct line count for goto
       0x00 -> append S_nop
 
@@ -269,7 +271,7 @@ byteCodeP = do
 
 
       -- my head just exploded
-      _ -> fail $ "Unknown code: " ++ show code
+      _ -> fail $ "Unknown code: 0x" ++ showHex code ""
 
 
     -- pop a value from the stack (return first stack variable)
