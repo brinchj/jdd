@@ -182,10 +182,12 @@ methodSig' bs meth = either (error $ "methodSig: " ++ show bs) id $
 
 
 data JimpleST = JimpleST { jimpleFree  :: [Variable]
-                         , jimpleStack :: [Variable] }
+                         , jimpleStack :: [Variable]
+                         , bytePos     :: Integer
+                         }
 
 byteCodeP = do
-  mcode <- optionMaybe anyChar
+  mcode <- optionMaybe nextByte
   case mcode of
     Nothing   -> return ()
     Just code -> parse (ord code) >> byteCodeP
@@ -201,6 +203,17 @@ byteCodeP = do
       -- int constants -1 to 5
       _ | code `elem` [0x02..0x08] ->
         void $ push $! VConst $! C_int $! fromIntegral $! code - 3
+
+      -- double constants
+      0x0e -> void $ push $! VConst $! C_double 0.0
+      0x0f -> void $ push $! VConst $! C_double 1.0
+
+      -- push byte to stack as int
+      0x10 -> void . push =<< VConst . C_int <$> u1
+
+      -- ldc: push constant
+      0x12 -> do Just (CF.Str a) <- askCP
+                 void $ push $! VConst $! C_string a
 
       -- int value from local variable 0 to 3
       _ | code `elem` [0x1a..0x1d] ->
@@ -249,6 +262,9 @@ byteCodeP = do
 
       -- goto
       0xa7 -> append =<< S_goto <$> label2
+
+      -- ireturn
+      0xac -> append =<< S_return . ILocal <$> pop
 
       -- areturn
       0xb0 -> append =<< S_return . ILocal <$> pop
@@ -313,8 +329,13 @@ byteCodeP = do
       ST.modify $ \(m, l) ->
         (m { methodStmts = methodStmts m ++ [(Nothing, cmd)] }, l)
 
+    -- read and register 1 byte
+    nextByte = do b <- anyChar
+                  ST.modify $ \(m, j) -> (m, j { bytePos = 1 + bytePos j })
+                  return b
+
     -- read 1-byte int
-    u1 = (fromIntegral . ord) <$> anyChar
+    u1 = (fromIntegral . ord) <$> nextByte
 
     -- read 2-byte int
     u2 = do a <- u1
@@ -364,7 +385,7 @@ parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod)
 parseJimple cf bs =
   go $! ST.runState (R.runReaderT (runPT byteCodeP () "" bs) cf)
         (Method [] [] [] [],
-         JimpleST stackVars [])
+         JimpleST stackVars [] 0)
   where
     stackVars = map (VarLocal . Local . ("s"++) . show) [1..]
 
