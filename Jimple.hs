@@ -91,7 +91,7 @@ data RValue = RV_ref   Ref
 data Ref = R_caughtException
          | R_parameter     Integer
          | R_this
-         | R_array         Im Integer
+         | R_array         Im Im
          | R_instanceField Im CF.Desc
          | R_staticField      CF.Desc
          | R_object        CF.Class
@@ -197,19 +197,24 @@ byteCodeP = do
       1 -> void $ push $! VConst C_null
 
       -- int constants -1 to 5
-      _ | 2 <= code && code <= 8 ->
+      _ | code `elem` [2..8] ->
         void $ push $! VConst $! C_int $! fromIntegral $! code - 3
 
       -- int value from local variable 0 to 3
-      _ | 26 <= code && code <= 29 ->
+      _ | code `elem` [26..29] ->
         void $ pushL $! VarLocal $! Local $! 'l' : show (code - 26)
 
       -- object ref from local variable 0 to 3
-      _ | 42 <= code && code <= 45 ->
+      _ | code `elem` [42..45] ->
         void $ pushL $! VarLocal $! Local $! 'l' : show (code - 42)
 
+      -- array assignment
+      _ | code `elem` [46..53] ->
+        arraySet $ [ T_int, T_long, T_float, T_double
+                   , T_object "", T_boolean, T_char, T_short ] !! (code - 46)
+
       -- store int value from stack in local variable 0 to 3
-      _ | 59 <= code && code <= 62 -> do
+      _ | code `elem` [59..62] -> do
         val <- pop
         append $! S_assign (VarLocal $! Local $! 'l' : show (code - 59))
           $! VLocal val
@@ -228,13 +233,9 @@ byteCodeP = do
       96 -> do (a, b) <- pop2
                void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
 
-      -- if
-      159 -> if2 E_eq -- ==
-      160 -> if2 E_ne -- /=
-      161 -> if2 E_lt -- <
-      162 -> if2 E_ge -- >=
-      163 -> if2 E_gt -- >
-      164 -> if2 E_le -- <=
+      -- if_icmp
+      _ | code `elem` [159..164] ->
+        if2 $ [E_eq, E_ne, E_lt, E_ge, E_gt, E_le] !! (code - 159)
 
       -- areturn
       176 -> do obj <- pop
@@ -266,6 +267,7 @@ byteCodeP = do
 
       -- my head just exploded
       _ -> fail $ "Unknown code: " ++ show code
+
 
     -- pop a value from the stack (return first stack variable)
     pop = do
@@ -323,6 +325,12 @@ byteCodeP = do
       b <- popI
       offset <- u2
       append $! S_if (a `op` b) $! Label offset
+
+    -- array assignment
+    arraySet tpe = do
+      arr <- popI
+      idx <- popI
+      void $! push $! VLocal $! VarRef $! R_array arr idx
 
 
 
