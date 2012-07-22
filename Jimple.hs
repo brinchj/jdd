@@ -335,9 +335,10 @@ byteCodeP = do
     pushL = push . VLocal
 
     -- append a label-less statement to code
-    append cmd =
+    append cmd = do
+      pos <- ST.gets $ bytePos . snd
       ST.modify $ \(m, l) ->
-        (m { methodStmts = methodStmts m ++ [(Nothing, cmd)] }, l)
+        (m { methodStmts = methodStmts m ++ [(Just $ Label pos, cmd)] }, l)
 
     -- read and register 1 byte
     nextByte = do b <- anyChar
