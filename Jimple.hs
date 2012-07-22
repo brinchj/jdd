@@ -91,9 +91,9 @@ data RValue = RV_ref   Ref
 data Ref = R_caughtException
          | R_parameter     Integer
          | R_this
-         | R_array         Integer
-         | R_instanceField Integer
-         | R_staticField   Integer
+         | R_array         Im Integer
+         | R_instanceField Im CF.Desc
+         | R_staticField      CF.Desc
          | R_object        CF.Class
          deriving Show
 
@@ -223,6 +223,12 @@ byteCodeP = do
 
       -- return void
       177 -> append $! S_returnVoid
+
+      -- get field
+      180 -> do
+        Just (CF.FieldRef cs desc) <- askCP
+        obj <- pop
+        void $ push $! VLocal $! VarRef $! R_instanceField (ILocal obj) desc
 
       -- invoke special
       183 -> do method <- methodP
