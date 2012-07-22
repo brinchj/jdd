@@ -208,16 +208,16 @@ byteCodeP = do
       _ | code `elem` [42..45] ->
         void $ pushL $! VarLocal $! Local $! 'l' : show (code - 42)
 
-      -- array assignment
-      _ | code `elem` [46..53] ->
-        arraySet $ [ T_int, T_long, T_float, T_double
-                   , T_object "", T_boolean, T_char, T_short ] !! (code - 46)
-
       -- store int value from stack in local variable 0 to 3
       _ | code `elem` [59..62] -> do
         val <- pop
         append $! S_assign (VarLocal $! Local $! 'l' : show (code - 59))
           $! VLocal val
+
+      -- array assignment
+      _ | code `elem` [79..86] ->
+        arraySet $ [ T_int, T_long, T_float, T_double
+                   , T_object "", T_boolean, T_char, T_short ] !! (code - 79)
 
       -- pop and pop2
       87 -> void pop
