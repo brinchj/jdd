@@ -13,7 +13,6 @@ module Parser
        , Desc(..)
        , Class(..)
        , makeSigned
-       , test
        ) where
 
 import Prelude hiding (take)
@@ -36,7 +35,6 @@ import qualified Data.Map as M
 
 import Data.Maybe (fromMaybe)
 import Data.Char (ord)
-
 
 
 data Version = Version { getMajor :: Integer, getMinor :: Integer}
@@ -148,13 +146,14 @@ constantPoolP = do
   maxID <- fromIntegral <$> u2
   void $ E.runErrorT $ entriesP $ maxID - 1
   where
-    entriesP = flip replicateM_ entryP
+    entriesP n = mapM_ entryP [1..n]
 
-    entryP = do
+    entryP i = do
       constant <- convertTag =<< lift u1
       lift $ ST.modify $ \cf ->
-        cf { classConstants = insert constant $ classConstants cf }
-      where insert c m = M.insert (fromIntegral $ M.size m + 1) c m
+        cf { classConstants = M.insert i constant $! classConstants cf }
+
+    fixRefs _ = return ()
 
     convertTag tag =
       case tag of
@@ -176,7 +175,7 @@ constantPoolP = do
 
         get1 = do
           idx <- lift u2
-          lift $ ST.gets $ fromMaybe (error "invalid id") .
+          lift $ ST.gets $ fromMaybe (error "invalid cid ref") .
             M.lookup idx . classConstants
 
         get2 f ma mb = do
@@ -244,6 +243,8 @@ classFile = do
   modifyM versionP $ \v cf -> cf { classVersion = v }
 
   -- Parse and update constant pool
+  -- iterate over it to get references right
+  replicateM 10 $ lookAhead constantPoolP
   constantPoolP
 
   -- flags
@@ -271,7 +272,3 @@ parseClassFile bs = ST.execState (runPT classFile () "" bs) emptyST
                         , classFields     = M.empty
                         }
 
-test :: IO ()
-test = do
-  bytes <- B.readFile "Wuddelcakes.class"
-  print $ parseClassFile bytes
