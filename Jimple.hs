@@ -200,6 +200,10 @@ byteCodeP = do
       _ | 2 <= code && code <= 8 ->
         void $ push $! VConst $! C_int $! fromIntegral $! code - 3
 
+      -- int value from local variable 0 to 3
+      _ | 26 <= code && code <= 29 ->
+        void $ pushL $! VarLocal $! Local $! 'l' : show (code - 26)
+
       -- object ref from local variable 0 to 3
       _ | 42 <= code && code <= 45 ->
         void $ pushL $! VarLocal $! Local $! 'l' : show (code - 42)
