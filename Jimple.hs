@@ -299,6 +299,8 @@ byteCodeP = do
       -- array length
       0xbe -> void . push =<< VExpr . E_length <$> popI
 
+      -- unassigned
+      _ | code `elem` [0xcb..0xfd] -> return ()
 
       -- my head just exploded
       _ -> fail $ "Unknown code: 0x" ++ showHex code ""
