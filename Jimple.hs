@@ -121,6 +121,7 @@ data Expression = E_eq Im Im -- Conditions
                 | E_div Im Im
                 | E_rem Im Im
 
+                | E_length Im
                 | E_cast   Type Im
                 | E_instanceOf Im Ref
                 | E_newArray Type Im
@@ -245,6 +246,10 @@ byteCodeP = do
       -- new object ref
       187 -> do Just (CF.ClassRef path) <- askCP
                 void $ push $! VExpr $! E_new $! R_object path
+
+      -- array length
+      190 -> do ref <- popI
+                void $ push $! VExpr $! E_length ref
 
 
       -- my head just exploded
