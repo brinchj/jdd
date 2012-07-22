@@ -191,78 +191,81 @@ byteCodeP = do
   where
     parse code = case traceShow code code of
        -- NOP, needed to maintain correct line count for goto
-      0 -> append S_nop
+      0x00 -> append S_nop
 
        -- @null@
-      1 -> void $ push $! VConst C_null
+      0x01 -> void $ push $! VConst C_null
 
       -- int constants -1 to 5
-      _ | code `elem` [2..8] ->
+      _ | code `elem` [0x02..0x08] ->
         void $ push $! VConst $! C_int $! fromIntegral $! code - 3
 
       -- int value from local variable 0 to 3
-      _ | code `elem` [26..29] ->
-        void $ pushL $! VarLocal $! Local $! 'l' : show (code - 26)
+      _ | code `elem` [0x1a..0x1d] ->
+        void $ pushL $! VarLocal $! Local $! 'l' : show (code - 0x1a)
 
       -- object ref from local variable 0 to 3
-      _ | code `elem` [42..45] ->
-        void $ pushL $! VarLocal $! Local $! 'l' : show (code - 42)
+      _ | code `elem` [0x2a..0x2d] ->
+        void $ pushL $! VarLocal $! Local $! 'l' : show (code - 0x2a)
+
+      -- array retrievel
+      _ | code `elem` [0x2e..0x35] ->
+        arrayGet $ types !! (code - 0x2e)
 
       -- store int value from stack in local variable 0 to 3
-      _ | code `elem` [59..62] -> do
+      _ | code `elem` [0x3b..0x3e] -> do
         val <- pop
-        append $! S_assign (VarLocal $! Local $! 'l' : show (code - 59))
+        append $! S_assign (VarLocal $! Local $! 'l' : show (code - 0x3b))
           $! VLocal val
 
       -- array assignment
-      _ | code `elem` [79..86] ->
-        arraySet $ [ T_int, T_long, T_float, T_double
-                   , T_object "", T_boolean, T_char, T_short ] !! (code - 79)
+      _ | code `elem` [0x4f..0x56] ->
+        arraySet $ types !! (code - 0x4f)
 
       -- pop and pop2
-      87 -> void pop
-      88 -> replicateM_ 2 pop
+      0x57 -> void pop
+      0x58 -> replicateM_ 2 pop
 
       -- dup: a -> a, a
-      89 -> mapM_ pushL =<< replicate 2 <$> pop
+      0x59 -> mapM_ pushL =<< replicate 2 <$> pop
 
       -- swap: a, b -> b, a
-      95 -> mapM_ pushL =<< replicateM 2 pop
+      0x5f -> mapM_ pushL =<< replicateM 2 pop
 
       -- add two ints
-      96 -> do (a, b) <- pop2
-               void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
+      0x60 -> do (a, b) <- pop2
+                 void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
 
       -- if_icmp
-      _ | code `elem` [159..164] ->
-        if2 $ [E_eq, E_ne, E_lt, E_ge, E_gt, E_le] !! (code - 159)
+      _ | code `elem` [0x9f..0xa4] ->
+        if2 $ [E_eq, E_ne, E_lt, E_ge, E_gt, E_le] !! (code - 0x9f)
 
       -- areturn
-      176 -> do obj <- pop
-                append $! S_return $! ILocal obj
+      0xb0 -> do obj <- pop
+                 append $! S_return $! ILocal obj
 
       -- return void
-      177 -> append $! S_returnVoid
+      0xb1 -> append $! S_returnVoid
 
-      -- get field
-      180 -> do
+      -- get instance field
+      0xb4 -> do
         Just (CF.FieldRef cs desc) <- askCP
         obj <- pop
         void $ push $! VLocal $! VarRef $! R_instanceField (ILocal obj) desc
 
       -- invoke special
-      183 -> do method <- methodP
-                objRef <- popI
-                params <- replicateM (length $ methodParams method) popI
-                append $! S_invoke (I_special objRef) method params
+      0xb7 -> do method <- methodP
+                 objRef <- popI
+                 params <- replicateM (length $ methodParams method) popI
+                 append $! S_invoke (I_special objRef) method params
 
       -- new object ref
-      187 -> do Just (CF.ClassRef path) <- askCP
-                void $ push $! VExpr $! E_new $! R_object path
+      0xbb -> do Just (CF.ClassRef path) <- askCP
+                 void $ push $! VExpr $! E_new $! R_object path
 
       -- array length
-      190 -> do ref <- popI
-                void $ push $! VExpr $! E_length ref
+      0xbe -> do ref <- popI
+                 void $ push $! VExpr $! E_length ref
 
 
       -- my head just exploded
@@ -326,12 +329,23 @@ byteCodeP = do
       offset <- u2
       append $! S_if (a `op` b) $! Label offset
 
-    -- array assignment
-    arraySet tpe = do
+    -- array retrieval
+    arrayGet tpe = do
       arr <- popI
       idx <- popI
       void $! push $! VLocal $! VarRef $! R_array arr idx
 
+    -- array retrieval
+    arraySet tpe = do
+      arr <- popI
+      idx <- popI
+      val <- pop
+      void $! append $! S_assign (VarRef $! R_array arr idx) $! VLocal val
+
+
+
+    types = [ T_int,       T_long,    T_float, T_double
+            , T_object "", T_boolean, T_char,  T_short  ]
 
 
 parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod)
