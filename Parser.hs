@@ -6,6 +6,12 @@
 module Parser
        (
          parseClassFile
+       , Constant(..)
+       , Attributes(..)
+       , AttributeBlock(..)
+       , ClassFile(..)
+       , Desc(..)
+       , Class(..)
        , test
        ) where
 
@@ -262,5 +268,5 @@ parseClassFile bs = ST.execState (runPT classFile () "" bs) emptyST
 
 test :: IO ()
 test = do
-  bytes <- B.readFile "aa.class"
+  bytes <- B.readFile "Wuddelcakes.class"
   print $ parseClassFile bytes

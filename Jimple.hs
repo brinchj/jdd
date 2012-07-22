@@ -2,14 +2,14 @@ module Jimple where
 
 import qualified Data.ByteString.Char8 as B
 
-
+import Debug.Trace
 import Data.Char
 import qualified Data.Map as M
 
 import Text.Parsec.ByteString
 import Text.Parsec.Char
 import Text.Parsec.Combinator
-import Text.Parsec
+import Text.Parsec as P
 
 import Control.Monad
 import Control.Monad.State as ST
@@ -43,7 +43,7 @@ data Stmt = S_breakpoint
           | S_exitMonitor  Im
           | S_goto Label
           | S_if Expression Label   -- Only condition expressions are allowed
-          | S_invoke Expression
+          | S_invoke InvokeType MethodSignature [Im]
           | S_lookupSwitch Label [(Int, Label)]
           | S_nop
           | S_ret Local
@@ -94,6 +94,7 @@ data Ref = R_caughtException
          | R_array         Integer
          | R_instanceField Integer
          | R_staticField   Integer
+         | R_object        CF.Class
          deriving Show
 
 
@@ -120,7 +121,6 @@ data Expression = E_eq Im Im -- Conditions
                 | E_div Im Im
                 | E_rem Im Im
 
-                | E_invoke Invoke -- Other
                 | E_cast   Type Im
                 | E_instanceOf Im Ref
                 | E_newArray Type Im
@@ -128,29 +128,67 @@ data Expression = E_eq Im Im -- Conditions
                 | E_newMultiArray Type Im [Im] -- TODO: empty dims?
                 deriving Show
 
-data Invoke = I_interface Im MethodSignature [Im]
-            | I_speciale  Im MethodSignature [Im]
-            | I_virtual   Im MethodSignature [Im]
-            | I_static MethodSignature [Im]
-            deriving Show
+data InvokeType = I_interface Im
+                | I_special   Im
+                | I_virtual   Im
+                | I_static
+                deriving Show
 
-data MethodSignature = MethodSig String [Type] Type
+data MethodSignature = MethodSig
+                       { methodClass  :: CF.Class
+                       , methodName   :: B.ByteString
+                       , methodParams :: [Type]
+                       , methodResult :: Type         }
                      deriving Show
 
-data Type = T_int | T_long | T_float | T_double | T_ref | T_addr | T_void
+data Type = T_byte | T_char  | T_int | T_boolean | T_short
+          | T_long | T_float | T_double
+          | T_object String | T_addr | T_void
+          | T_array Type
           deriving Show
 
+
+
+typeP :: Parser Type
+typeP = do
+  tag <- anyChar
+  case tag of
+    'B' -> return T_byte
+    'C' -> return T_char
+    'D' -> return T_double
+    'F' -> return T_float
+    'I' -> return T_int
+    'J' -> return T_long
+    'S' -> return T_short
+    'Z' -> return T_boolean
+    'L' -> T_object <$> anyChar `manyTill` char ';'
+    '[' -> T_array  <$> typeP
+    _   -> fail $ "Unknown type tag: " ++ show tag
+
+methodSigP :: ([Type] -> Type -> MethodSignature) -> Parser MethodSignature
+methodSigP meth = liftM2 meth paramsP resultP
+  where
+    paramsP = between (char '(') (char ')') $ P.many $ try typeP
+    resultP = choice [try typeP, try voidP]
+    voidP = char 'V' >> return T_void
+
+methodSig bs meth = runP (methodSigP meth) () "methodSig" bs
+
+methodSig' bs meth = either (error $ "methodSig: " ++ show bs) id $
+                     methodSig bs meth
 
 
 data JimpleST = JimpleST { jimpleFree  :: [Variable]
                          , jimpleStack :: [Variable] }
 
 byteCodeP = do
-  code <- anyToken
-  parse (ord code) >> byteCodeP
+  mcode <- optionMaybe anyToken
+  case mcode of
+    Nothing   -> return ()
+    Just code -> parse (ord code) >> byteCodeP
 
   where
-    parse code = case code of
+    parse code = case (traceShow code code) of
        -- NOP, needed to maintain correct line count for goto
       0 -> append S_nop
 
@@ -163,27 +201,34 @@ byteCodeP = do
 
       -- object ref from local variable 0 to 3
       _ | 42 <= code && code <= 45 ->
-        void $ push $! VLocal $! VarLocal $! Local $! 'l' : show (code - 42)
+        void $ pushL $! VarLocal $! Local $! 'l' : show (code - 42)
 
       -- pop and pop2
-      57 -> void pop
-      58 -> replicateM_ 2 pop
+      87 -> void pop
+      88 -> replicateM_ 2 pop
 
       -- dup: a -> a, a
-      59 -> mapM_ (push . VLocal) =<< replicate 2 <$> pop
+      89 -> mapM_ pushL =<< replicate 2 <$> pop
 
       -- swap: a, b -> b, a
-      95 -> mapM_ (push . VLocal) =<< replicateM 2 pop
+      95 -> mapM_ pushL =<< replicateM 2 pop
 
       -- add two ints
       96 -> do (a, b) <- pop2
                void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
 
+      -- areturn
+      176 -> do obj <- pop
+                append $! S_return $! ILocal obj
+
       -- invoke special
-      183 -> do idx <- u2
-                Just (CF.Method path (CF.Desc name tpe)) <-
-                         M.lookup idx <$> R.asks CF.classConstants
-                error $ show (path, name, tpe)
+      183 -> do method <- methodP
+                objRef <- popI
+                params <- replicateM (length $ methodParams method) popI
+                append $! S_invoke (I_special objRef) method params
+
+      187 -> do Just (CF.ClassRef path) <- askCP
+                void $ push $! VExpr $! E_new $! R_object path
 
       -- my head just exploded
       _ -> fail $ "Unknown code: " ++ show code
@@ -193,6 +238,9 @@ byteCodeP = do
       (x:xs) <- ST.gets $ jimpleStack . snd
       ST.modify $ \(m, j) -> (m, j { jimpleStack = xs })
       return x
+
+    -- pop as immediate value
+    popI = ILocal <$> pop
 
     -- pop two values
     pop2 = do
@@ -208,6 +256,9 @@ byteCodeP = do
       append $! S_assign x $! v
       return x
 
+    -- push a local variable to stack
+    pushL = push . VLocal
+
     -- append a label-less statement to code
     append cmd =
       ST.modify $ \(m, l) ->
@@ -218,8 +269,20 @@ byteCodeP = do
 
     -- read 2-byte int
     u2 = do a <- u1
-            b <- u2
+            b <- u1
             return $! a * 8 + b
+
+
+    -- retrieve an element from the constant pool
+    askCP = do
+      idx <- u2
+      M.lookup idx <$> R.asks CF.classConstants
+
+    -- read a method description from constant pool
+    methodP = do
+      Just (CF.Method path (CF.Desc name tpe)) <- askCP
+      return $! methodSig' tpe $! MethodSig path name
+
 
 
 parseJimple cf bs =
@@ -235,4 +298,6 @@ parseJimple cf bs =
 test = do
   cf <- CF.parseClassFile <$> B.readFile "aa.class"
   print cf
-  print $ parseJimple cf "\NUL\STX\NUL\STX\NUL\NUL\NUL\ACK*+\183\NUL\b\177\NUL\NUL\NUL\NUL"
+  let code = "\NUL\STX\NUL\SOH\NUL\NUL\NUL\b\187\NUL\nY\183\NUL\r\176\NUL\NUL\NUL\NUL"
+  print code
+  print $ parseJimple cf code
