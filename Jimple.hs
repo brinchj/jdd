@@ -182,7 +182,7 @@ data JimpleST = JimpleST { jimpleFree  :: [Variable]
                          , jimpleStack :: [Variable] }
 
 byteCodeP = do
-  mcode <- optionMaybe anyToken
+  mcode <- optionMaybe anyChar
   case mcode of
     Nothing   -> return ()
     Just code -> parse (ord code) >> byteCodeP
@@ -274,7 +274,7 @@ byteCodeP = do
         (m { methodStmts = methodStmts m ++ [(Nothing, cmd)] }, l)
 
     -- read 1-byte int
-    u1 = (fromIntegral . ord) <$> anyToken
+    u1 = (fromIntegral . ord) <$> anyChar
 
     -- read 2-byte int
     u2 = do a <- u1
