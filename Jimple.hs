@@ -248,12 +248,10 @@ byteCodeP = do
         if2 $ [E_eq, E_ne, E_lt, E_ge, E_gt, E_le] !! (code - 0x9f)
 
       -- goto
-      0xa7 -> do lbl <- label2
-                 append $! S_goto lbl
+      0xa7 -> append =<< S_goto <$> label2
 
       -- areturn
-      0xb0 -> do obj <- pop
-                 append $! S_return $! ILocal obj
+      0xb0 -> append =<< S_return . ILocal <$> pop
 
       -- return void
       0xb1 -> append $! S_returnVoid
@@ -275,8 +273,7 @@ byteCodeP = do
                  void $ push $! VExpr $! E_new $! R_object path
 
       -- array length
-      0xbe -> do ref <- popI
-                 void $ push $! VExpr $! E_length ref
+      0xbe -> void . push =<< VExpr . E_length <$> popI
 
 
       -- my head just exploded
