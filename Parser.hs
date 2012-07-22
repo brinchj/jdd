@@ -54,6 +54,9 @@ data Constant = SignedInt Integer
               | Str      { unStr :: B.ByteString }
               | ClassRef { unClassRef :: Class }
               | DescRef  { unDescRef  :: Desc  }
+              | FieldRef
+                { fieldClass :: Class
+                , fieldType  :: Desc }
               | Method
                 { methodClass :: Class
                 , methodDesc  :: Desc }
@@ -160,6 +163,7 @@ constantPoolP = do
         3  -> SignedInt        <$^> s4
         5  -> Long             <$^> s8
         7  -> ClassRef . Class . unStr <$> get1
+        9  -> FieldRef `get2` unClassRef $ unDescRef
 
         10 -> Method  `get2` unClassRef $ unDescRef
         12 -> DescRef <$> (Desc `get2` unStr  $ unStr)
