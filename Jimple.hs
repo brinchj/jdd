@@ -239,6 +239,7 @@ byteCodeP = do
       187 -> do Just (CF.ClassRef path) <- askCP
                 void $ push $! VExpr $! E_new $! R_object path
 
+
       -- my head just exploded
       _ -> fail $ "Unknown code: " ++ show code
 
@@ -293,7 +294,7 @@ byteCodeP = do
       return $! methodSig' tpe $! MethodSig path name
 
 
-
+parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod)
 parseJimple cf bs =
   go $! ST.runState (R.runReaderT (runPT byteCodeP () "" bs) cf)
         (Method [] [] [] [],
@@ -304,9 +305,4 @@ parseJimple cf bs =
     go (Left err, (meth, jst)) = (Just err, meth)
     go (Right _,  (meth, jst)) = (Nothing,  meth)
 
-test = do
-  cf <- CF.parseClassFile <$> B.readFile "aa.class"
-  print cf
-  let code = "\NUL\STX\NUL\SOH\NUL\NUL\NUL\b\187\NUL\nY\183\NUL\r\176\NUL\NUL\NUL\NUL"
-  print code
-  print $ parseJimple cf code
+
