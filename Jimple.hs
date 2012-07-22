@@ -208,7 +208,7 @@ byteCodeP = do
 
       -- object ref from local variable 0 to 3
       _ | code `elem` [0x2a..0x2d] ->
-        void $ pushL $! VarLocal $! Local $! 'l' : show (code - 0x2a)
+        void $ pushL $! getLocal $! code - 0x2a
 
       -- array retrievel
       _ | code `elem` [0x2e..0x35] ->
@@ -217,8 +217,7 @@ byteCodeP = do
       -- store int value from stack in local variable 0 to 3
       _ | code `elem` [0x3b..0x3e] -> do
         val <- pop
-        append $! S_assign (VarLocal $! Local $! 'l' : show (code - 0x3b))
-          $! VLocal val
+        append $! S_assign (getLocal $! code - 0x3b) $! VLocal val
 
       -- array assignment
       _ | code `elem` [0x4f..0x56] ->
@@ -238,9 +237,19 @@ byteCodeP = do
       0x60 -> do (a, b) <- pop2
                  void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
 
+      -- iinc
+      0x84 -> do idx <- u1
+                 val <- u1
+                 append $! S_assign (getLocal idx) $! VExpr $!
+                   E_add (ILocal $! getLocal idx) $! IConst $! C_int val
+
       -- if_icmp
       _ | code `elem` [0x9f..0xa4] ->
         if2 $ [E_eq, E_ne, E_lt, E_ge, E_gt, E_le] !! (code - 0x9f)
+
+      -- goto
+      0xa7 -> do lbl <- label2
+                 append $! S_goto lbl
 
       -- areturn
       0xb0 -> do obj <- pop
@@ -273,6 +282,8 @@ byteCodeP = do
       -- my head just exploded
       _ -> fail $ "Unknown code: 0x" ++ showHex code ""
 
+
+    getLocal idx = VarLocal $! Local $! 'l' : show idx
 
     -- pop a value from the stack (return first stack variable)
     pop = do
@@ -311,8 +322,10 @@ byteCodeP = do
     -- read 2-byte int
     u2 = do a <- u1
             b <- u1
-            return $! a * 8 + b
+            return $! a * 2^8 + b
 
+    -- read 2-byte label (signed short)
+    label2 = Label . CF.makeSigned 16 <$> u2
 
     -- retrieve an element from the constant pool
     askCP = do
@@ -328,8 +341,8 @@ byteCodeP = do
     if2 op = do
       a <- popI
       b <- popI
-      offset <- u2
-      append $! S_if (a `op` b) $! Label offset
+      lbl <- label2
+      append $! S_if (a `op` b) lbl
 
     -- array retrieval
     arrayGet tpe = do
