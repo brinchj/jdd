@@ -203,6 +203,12 @@ byteCodeP = do
       _ | 42 <= code && code <= 45 ->
         void $ pushL $! VarLocal $! Local $! 'l' : show (code - 42)
 
+      -- store int value from stack in local variable 0 to 3
+      _ | 59 <= code && code <= 62 -> do
+        val <- pop
+        append $! S_assign (VarLocal $! Local $! 'l' : show (code - 59))
+          $! VLocal val
+
       -- pop and pop2
       87 -> void pop
       88 -> replicateM_ 2 pop
