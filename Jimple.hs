@@ -252,6 +252,9 @@ byteCodeP = do
       -- ?ALOAD: array retrieval, int to short
       _ | code `elem` [0x2e..0x35] -> arrayGet $ types !! (code - 0x2e)
 
+      -- ?STORE: store value in local variable #, int to object ref
+      _ | code `elem` [0x36..0x3a] -> void . pushL =<< getLocal <$> u1
+
       -- ISTORE_#: store int value from stack in local variable 0 to 3
       _ | code `elem` [0x3b..0x3e] ->
         append =<< S_assign (getLocal $ code - 0x3b) . VLocal <$> pop
