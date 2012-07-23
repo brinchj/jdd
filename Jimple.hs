@@ -219,7 +219,7 @@ byteCodeP = do
       -- push byte to stack as int
       0x10 -> void . push =<< VConst . C_int <$> u1
 
-      -- push signed short to stack as int
+      -- sipush: signed short to stack as int
       0x11 -> void . push =<< VConst . C_int <$> s2
 
       -- ldc: push constant
@@ -227,25 +227,20 @@ byteCodeP = do
                  void $ push $! VConst $! C_string a
 
       -- int value from local variable 0 to 3
-      _ | code `elem` [0x1a..0x1d] ->
-        void $ pushL $! VarLocal $! Local $! 'l' : show (code - 0x1a)
+      _ | code `elem` [0x1a..0x1d] -> void $ pushL $! getLocal $! code - 0x1a
 
       -- object ref from local variable 0 to 3
-      _ | code `elem` [0x2a..0x2d] ->
-        void $ pushL $! getLocal $! code - 0x2a
+      _ | code `elem` [0x2a..0x2d] -> void $ pushL $! getLocal $! code - 0x2a
 
       -- array retrievel
-      _ | code `elem` [0x2e..0x35] ->
-        arrayGet $ types !! (code - 0x2e)
+      _ | code `elem` [0x2e..0x35] -> arrayGet $ types !! (code - 0x2e)
 
       -- store int value from stack in local variable 0 to 3
-      _ | code `elem` [0x3b..0x3e] -> do
-        val <- pop
-        append $! S_assign (getLocal $! code - 0x3b) $! VLocal val
+      _ | code `elem` [0x3b..0x3e] ->
+        append =<< S_assign (getLocal $ code - 0x3b) . VLocal <$> pop
 
       -- array assignment
-      _ | code `elem` [0x4f..0x56] ->
-        arraySet $ types !! (code - 0x4f)
+      _ | code `elem` [0x4f..0x56] -> arraySet $ types !! (code - 0x4f)
 
       -- pop and pop2
       0x57 -> void pop
@@ -258,12 +253,10 @@ byteCodeP = do
       0x5f -> mapM_ pushL =<< replicateM 2 pop
 
       -- add two ints
-      0x60 -> do (a, b) <- pop2
-                 void $ push $! VExpr $! E_add (ILocal a) (ILocal b)
+      0x60 -> void $ push =<< VExpr <$> liftM2 E_add popI popI
 
       -- iinc
-      0x84 -> do idx <- u1
-                 val <- u1
+      0x84 -> do (idx, val) <- liftM2 (,) u1 u1
                  append $! S_assign (getLocal idx) $! VExpr $!
                    E_add (ILocal $! getLocal idx) $! IConst $! C_int val
 
@@ -286,8 +279,8 @@ byteCodeP = do
       -- get instance field
       0xb4 -> do
         Just (CF.FieldRef cs desc) <- askCP
-        obj <- pop
-        void $ push $! VLocal $! VarRef $! R_instanceField (ILocal obj) desc
+        obj <- popI
+        void $ push $! VLocal $! VarRef $! R_instanceField obj desc
 
       -- invoke special
       0xb7 -> do method <- methodP
@@ -321,17 +314,14 @@ byteCodeP = do
     popI = ILocal <$> pop
 
     -- pop two values
-    pop2 = do
-      a <- pop
-      b <- pop
-      return $! (a, b)
+    pop2 = liftM2 (,) pop pop
 
     -- push value to stack (assign to next stack variable)
     push v = do
       (x:xs) <- ST.gets $ jimpleFree . snd
       ST.modify $ \(m, j) -> (m, j { jimpleStack = x : jimpleStack j
                                    , jimpleFree  = xs                })
-      append $! S_assign x $! v
+      append $! S_assign x v
       return x
 
     -- push a local variable to stack
@@ -352,8 +342,7 @@ byteCodeP = do
     u1 = (fromIntegral . ord) <$> nextByte
 
     -- read 2-byte int
-    u2 = do a <- u1
-            b <- u1
+    u2 = do (a, b) <- liftM2 (,) u1 u1
             return $! a * 2^8 + b
 
     -- read 2-byte signed int
@@ -363,9 +352,7 @@ byteCodeP = do
     label2 = Label <$> s2
 
     -- retrieve an element from the constant pool
-    askCP = do
-      idx <- u2
-      M.lookup idx <$> R.asks CF.classConstants
+    askCP = liftM2 M.lookup u2 $ R.asks CF.classConstants
 
     -- read a method description from constant pool
     methodP = do
@@ -374,24 +361,16 @@ byteCodeP = do
 
     -- general version of if for binary op
     if2 op = do
-      a <- popI
-      b <- popI
-      lbl <- label2
-      append $! S_if (a `op` b) lbl
+      con <- liftM2 op popI popI
+      append =<< S_if con <$> label2
 
     -- array retrieval
-    arrayGet tpe = do
-      arr <- popI
-      idx <- popI
-      void $! push $! VLocal $! VarRef $! R_array arr idx
+    arrayGet tpe = void . push =<< VLocal . VarRef <$> liftM2 R_array popI popI
 
     -- array retrieval
     arraySet tpe = do
-      arr <- popI
-      idx <- popI
-      val <- pop
-      void $! append $! S_assign (VarRef $! R_array arr idx) $! VLocal val
-
+      ref <- VarRef <$> liftM2 R_array popI popI
+      void . append =<< S_assign ref . VLocal <$> pop
 
 
     types = [ T_int,       T_long,    T_float, T_double
