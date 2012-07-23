@@ -234,20 +234,12 @@ byteCodeP = do
       -- ?LOAD: load value from local variable, int to object ref
       _ | code `elem` [0x15..0x19] -> void . pushL =<< getLocal <$> u1
 
-      -- ILOAD_#: int value from local variable 0 to 3
-      _ | code `elem` [0x1a..0x1d] -> void $ pushL $! getLocal $! code - 0x1a
-
-      -- LLOAD_#: long value from local variable 0 to 3
-      _ | code `elem` [0x1f..0x21] -> void $ pushL $! getLocal $! code - 0x1f
-
-      -- FLOAD_#: float value from local variable 0 to 3
-      _ | code `elem` [0x22..0x25] -> void $ pushL $! getLocal $! code - 0x22
-
-      -- DLOAF_#: double value from local variable 0 to 3
-      _ | code `elem` [0x26..0x29] -> void $ pushL $! getLocal $! code - 0x26
-
-      -- ALOAD_#: object ref from local variable 0 to 3
-      _ | code `elem` [0x2a..0x2d] -> void $ pushL $! getLocal $! code - 0x2a
+      -- ?LOAD_#: int to object ref value from local variable 0 to 3
+      _ | code `elem` [0x1a..0x2d] -> void $ pushL $! getLocal var
+        where
+          val = code - 0x1a
+          var = val `mod` 4
+          tpe = types !! (val `div` 4) -- int to object ref
 
       -- ?ALOAD: array retrieval, int to short
       _ | code `elem` [0x2e..0x35] -> arrayGet $ types !! (code - 0x2e)
