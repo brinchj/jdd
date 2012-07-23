@@ -237,6 +237,9 @@ byteCodeP = do
       -- ILOAD_#: int value from local variable 0 to 3
       _ | code `elem` [0x1a..0x1d] -> void $ pushL $! getLocal $! code - 0x1a
 
+      -- LLOAD_#: long value from local variable 0 to 3
+      _ | code `elem` [0x1f..0x21] -> void $ pushL $! getLocal $! code - 0x1f
+
       -- ALOAD_#: object ref from local variable 0 to 3
       _ | code `elem` [0x2a..0x2d] -> void $ pushL $! getLocal $! code - 0x2a
 
