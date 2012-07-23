@@ -334,9 +334,6 @@ byteCodeP = do
     -- pop as immediate value
     popI = ILocal <$> pop
 
-    -- pop two values
-    pop2 = liftM2 (,) pop pop
-
     -- push value to stack (assign to next stack variable)
     push v = do
       (x:xs) <- ST.gets $ jimpleFree . snd
