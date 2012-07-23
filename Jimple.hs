@@ -194,111 +194,111 @@ byteCodeP = do
 
   where
     parse code = case trace ("0x" ++ showHex code "") code of
-       -- NOP, needed to maintain correct line count for goto
+       -- NOP: needed to maintain correct line count for goto
       0x00 -> append S_nop
 
-       -- @null@
+       -- ACONST_NULL: @null@
       0x01 -> void $ push $! VConst C_null
 
-      -- int constants -1 to 5
+      -- ICONST_#: constants -1 to 5
       _ | code `elem` [0x02..0x08] ->
         void $ push $! VConst $! C_int $! fromIntegral $! code - 3
 
-      -- long constants
+      -- LCONST_#: long constants 0L to 1L
       0x09 -> void $ push $! VConst $! C_long 0
       0x0a -> void $ push $! VConst $! C_long 1
 
-      -- float constants
+      -- FCONST_#: float constants 0.0f to 2.0f
       _ | code `elem` [0x0b, 0x0c, 0x0d] ->
         void $ push $! VConst $! C_float $! fromIntegral $! code - 0x0b
 
-      -- double constants
+      -- DCONST_#: double constants 0.0 to 1.0
       0x0e -> void $ push $! VConst $! C_double 0.0
       0x0f -> void $ push $! VConst $! C_double 1.0
 
-      -- push byte to stack as int
+      -- BIPUSH: push byte to stack as int
       0x10 -> void . push =<< VConst . C_int <$> u1
 
-      -- sipush: signed short to stack as int
+      -- SIPUSH: signed short to stack as int
       0x11 -> void . push =<< VConst . C_int <$> s2
 
-      -- ldc: push constant
+      -- LDC: push from constant pool (String, int, float)
       0x12 -> do Just (CF.Str a) <- askCP
                  void $ push $! VConst $! C_string a
 
-      -- int value from local variable 0 to 3
+      -- ILOAD_#: int value from local variable 0 to 3
       _ | code `elem` [0x1a..0x1d] -> void $ pushL $! getLocal $! code - 0x1a
 
-      -- object ref from local variable 0 to 3
+      -- ALOAD_#: object ref from local variable 0 to 3
       _ | code `elem` [0x2a..0x2d] -> void $ pushL $! getLocal $! code - 0x2a
 
-      -- array retrievel
+      -- ?ALOAD: array retrieval, int to short
       _ | code `elem` [0x2e..0x35] -> arrayGet $ types !! (code - 0x2e)
 
-      -- store int value from stack in local variable 0 to 3
+      -- ISTORE_#: store int value from stack in local variable 0 to 3
       _ | code `elem` [0x3b..0x3e] ->
         append =<< S_assign (getLocal $ code - 0x3b) . VLocal <$> pop
 
-      -- array assignment
+      -- ?ASTORE: array assignment, int to short
       _ | code `elem` [0x4f..0x56] -> arraySet $ types !! (code - 0x4f)
 
-      -- pop and pop2
+      -- POP and POP2
       0x57 -> void pop
       0x58 -> replicateM_ 2 pop
 
-      -- dup: a -> a, a
+      -- DUP: a -> a, a
       0x59 -> mapM_ pushL =<< replicate 2 <$> pop
 
-      -- swap: a, b -> b, a
+      -- SWAP: a, b -> b, a
       0x5f -> mapM_ pushL =<< replicateM 2 pop
 
-      -- add two ints
+      -- IADD: add two ints
       0x60 -> void $ push =<< VExpr <$> liftM2 E_add popI popI
 
-      -- iinc
+      -- IINC: increment by constant
       0x84 -> do (idx, val) <- liftM2 (,) u1 u1
                  append $! S_assign (getLocal idx) $! VExpr $!
                    E_add (ILocal $! getLocal idx) $! IConst $! C_int val
 
-      -- if_icmp
+      -- IF_ICMP??: int cmp, eq to le
       _ | code `elem` [0x9f..0xa4] ->
         if2 $ [E_eq, E_ne, E_lt, E_ge, E_gt, E_le] !! (code - 0x9f)
 
-      -- goto
+      -- GOTO: unconditional jump
       0xa7 -> append =<< S_goto <$> label2
 
-      -- ireturn
+      -- IRETURN: return int value from stack
       0xac -> append =<< S_return . ILocal <$> pop
 
-      -- areturn
+      -- ARETURN: return object ref from stack
       0xb0 -> append =<< S_return . ILocal <$> pop
 
-      -- return void
+      -- RETURN: return void
       0xb1 -> append $! S_returnVoid
 
-      -- get instance field
+      -- GETFIELD: get instance field
       0xb4 -> do
         Just (CF.FieldRef cs desc) <- askCP
         obj <- popI
         void $ push $! VLocal $! VarRef $! R_instanceField obj desc
 
-      -- invoke special
+      -- INVOKESPECIAL: invoke instance method on object ref
       0xb7 -> do method <- methodP
                  objRef <- popI
                  params <- replicateM (length $ methodParams method) popI
                  append $! S_invoke (I_special objRef) method params
 
-      -- new object ref
+      -- NEW: new object ref
       0xbb -> do Just (CF.ClassRef path) <- askCP
                  void $ push $! VExpr $! E_new $! R_object path
 
-      -- array length
+      -- ARRAYLENGTH: get length of array ref
       0xbe -> void . push =<< VExpr . E_length <$> popI
 
-      -- unassigned
+      -- UNASSIGNED: skip (can appear after last return; garbage)
       _ | code `elem` [0xcb..0xfd] -> return ()
 
-      -- my head just exploded
+      -- NOT IMPLEMENTED: my head just exploded
       _ -> fail $ "Unknown code: 0x" ++ showHex code ""
 
 
