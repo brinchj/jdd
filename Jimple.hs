@@ -231,8 +231,8 @@ byteCodeP = do
       0x14 -> do Just (CF.Str a) <- askCP u2
                  void $ push $! VConst $! C_string a
 
-
-
+      -- ?LOAD: load value from local variable, int to object ref
+      _ | code `elem` [0x15..0x19] -> void . pushL =<< getLocal <$> u1
 
       -- ILOAD_#: int value from local variable 0 to 3
       _ | code `elem` [0x1a..0x1d] -> void $ pushL $! getLocal $! code - 0x1a
