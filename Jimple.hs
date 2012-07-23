@@ -222,9 +222,17 @@ byteCodeP = do
       -- SIPUSH: signed short to stack as int
       0x11 -> void . push =<< VConst . C_int <$> s2
 
-      -- LDC: push from constant pool (String, int, float)
-      0x12 -> do Just (CF.Str a) <- askCP
+      -- LDC#: push from constant pool (String, int, float) + wide / double
+      -- TODO: Add support for other types than String (Str)
+      0x12 -> do Just (CF.Str a) <- askCP u1
                  void $ push $! VConst $! C_string a
+      0x13 -> do Just (CF.Str a) <- askCP u2
+                 void $ push $! VConst $! C_string a
+      0x14 -> do Just (CF.Str a) <- askCP u2
+                 void $ push $! VConst $! C_string a
+
+
+
 
       -- ILOAD_#: int value from local variable 0 to 3
       _ | code `elem` [0x1a..0x1d] -> void $ pushL $! getLocal $! code - 0x1a
@@ -278,7 +286,7 @@ byteCodeP = do
 
       -- GETFIELD: get instance field
       0xb4 -> do
-        Just (CF.FieldRef cs desc) <- askCP
+        Just (CF.FieldRef cs desc) <- askCP u2
         obj <- popI
         void $ push $! VLocal $! VarRef $! R_instanceField obj desc
 
@@ -289,7 +297,7 @@ byteCodeP = do
                  append $! S_invoke (I_special objRef) method params
 
       -- NEW: new object ref
-      0xbb -> do Just (CF.ClassRef path) <- askCP
+      0xbb -> do Just (CF.ClassRef path) <- askCP u2
                  void $ push $! VExpr $! E_new $! R_object path
 
       -- ARRAYLENGTH: get length of array ref
@@ -352,11 +360,13 @@ byteCodeP = do
     label2 = Label <$> s2
 
     -- retrieve an element from the constant pool
-    askCP = liftM2 M.lookup u2 $ R.asks CF.classConstants
+    askCP u = liftM2 M.lookup u $ R.asks CF.classConstants
+    askCP1 = askCP u1
+    askCP2 = askCP u2
 
     -- read a method description from constant pool
     methodP = do
-      Just (CF.Method path (CF.Desc name tpe)) <- askCP
+      Just (CF.Method path (CF.Desc name tpe)) <- askCP u2
       return $! methodSig' tpe $! MethodSig path name
 
     -- general version of if for binary op
