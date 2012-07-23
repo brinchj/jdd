@@ -187,12 +187,21 @@ data JimpleST = JimpleST { jimpleFree  :: [Variable]
                          }
 
 byteCodeP = do
-  mcode <- optionMaybe nextByte
-  case mcode of
-    Nothing   -> return ()
-    Just code -> parse (ord code) >> byteCodeP
+  maxStack <- u2
+  maxLocals <- u2
+  codeLength <- u4
+  ST.modify $ \(m, j) -> (m, j { bytePos = 0 })
+  go codeLength
 
   where
+    go len = do
+      pos <- ST.gets $ bytePos . snd
+      if pos >= len then return () else do
+        mcode <- optionMaybe nextByte
+        case mcode of
+          Nothing   -> return ()
+          Just code -> parse (ord code) >> go len
+
     parse code = case trace ("0x" ++ showHex code "") code of
        -- NOP: needed to maintain correct line count for goto
       0x00 -> append S_nop
@@ -356,6 +365,10 @@ byteCodeP = do
     -- read 2-byte int
     u2 = do (a, b) <- liftM2 (,) u1 u1
             return $! a * 2^8 + b
+
+    -- read 4-byte int
+    u4 = do (a, b) <- liftM2 (,) u2 u2
+            return $! a * 2^16 + b
 
     -- read 2-byte signed int
     s2 = CF.makeSigned 16 <$> u2
