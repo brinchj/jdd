@@ -305,8 +305,8 @@ byteCodeP = do
 
       -- INVOKESPECIAL: invoke instance method on object ref
       0xb7 -> do method <- methodP
-                 objRef <- popI
                  params <- replicateM (length $ methodParams method) popI
+                 objRef <- popI
                  append $! S_invoke (I_special objRef) method params
 
       -- NEW: new object ref
@@ -388,15 +388,16 @@ byteCodeP = do
 
     -- general version of if for binary op
     if2 op = do
-      con <- liftM2 op popI popI
+      con <- liftM2 (flip op) popI popI
       append =<< S_if con <$> label2
 
     -- array retrieval
-    arrayGet tpe = void . push =<< VLocal . VarRef <$> liftM2 R_array popI popI
+    arrayGet tpe =
+      void . push =<< VLocal . VarRef <$> liftM2 (flip R_array) popI popI
 
     -- array retrieval
     arraySet tpe = do
-      ref <- VarRef <$> liftM2 R_array popI popI
+      ref <- VarRef <$> liftM2 (flip R_array) popI popI
       void . append =<< S_assign ref . VLocal <$> pop
 
 
