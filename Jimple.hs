@@ -219,6 +219,9 @@ byteCodeP = do
       -- push byte to stack as int
       0x10 -> void . push =<< VConst . C_int <$> u1
 
+      -- push signed short to stack as int
+      0x11 -> void . push =<< VConst . C_int <$> s2
+
       -- ldc: push constant
       0x12 -> do Just (CF.Str a) <- askCP
                  void $ push $! VConst $! C_string a
@@ -353,8 +356,11 @@ byteCodeP = do
             b <- u1
             return $! a * 2^8 + b
 
+    -- read 2-byte signed int
+    s2 = CF.makeSigned 16 <$> u2
+
     -- read 2-byte label (signed short)
-    label2 = Label . CF.makeSigned 16 <$> u2
+    label2 = Label <$> s2
 
     -- retrieve an element from the constant pool
     askCP = do
