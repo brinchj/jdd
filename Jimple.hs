@@ -233,12 +233,12 @@ byteCodeP = do
 
       -- LDC#: push from constant pool (String, int, float) + wide / double
       -- TODO: Add support for other types than String (Str)
-      0x12 -> do Just (CF.Str a) <- askCP u1
-                 void $ push $! VConst $! C_string a
-      0x13 -> do Just (CF.Str a) <- askCP u2
-                 void $ push $! VConst $! C_string a
-      0x14 -> do Just (CF.Str a) <- askCP u2
-                 void $ push $! VConst $! C_string a
+      0x12 -> do Just cpC <- askCP1
+                 void $ push $! cpToVC cpC
+      0x13 -> do Just cpC <- askCP2
+                 void $ push $! cpToVC cpC
+      0x14 -> do Just cpC <- askCP2
+                 void $ push $! cpToVC cpC
 
       -- ?LOAD: load value from local variable, int to object ref
       _ | code `elem` [0x15..0x19] -> void . pushL =<< getLocal <$> u1
@@ -299,7 +299,7 @@ byteCodeP = do
 
       -- GETFIELD: get instance field
       0xb4 -> do
-        Just (CF.FieldRef cs desc) <- askCP u2
+        Just (CF.FieldRef cs desc) <- askCP2
         obj <- popI
         void $ push $! VLocal $! VarRef $! R_instanceField obj desc
 
@@ -310,7 +310,7 @@ byteCodeP = do
                  append $! S_invoke (I_special objRef) method params
 
       -- NEW: new object ref
-      0xbb -> do Just (CF.ClassRef path) <- askCP u2
+      0xbb -> do Just (CF.ClassRef path) <- askCP2
                  void $ push $! VExpr $! E_new $! R_object path
 
       -- ARRAYLENGTH: get length of array ref
@@ -383,7 +383,7 @@ byteCodeP = do
 
     -- read a method description from constant pool
     methodP = do
-      Just (CF.Method path (CF.Desc name tpe)) <- askCP u2
+      Just (CF.Method path (CF.Desc name tpe)) <- askCP2
       return $! methodSig' tpe $! MethodSig path name
 
     -- general version of if for binary op
@@ -399,6 +399,10 @@ byteCodeP = do
       ref <- VarRef <$> liftM2 R_array popI popI
       void . append =<< S_assign ref . VLocal <$> pop
 
+
+    -- Convert constant pool value to VConst
+    cpToVC (CF.Str s) = VConst $! C_string s
+    cpToVC a = error $ "Unknown constant: " ++ show a
 
     types = [ T_int,       T_long,    T_float, T_double
             , T_object "", T_boolean, T_char,  T_short  ]
