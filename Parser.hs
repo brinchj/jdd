@@ -210,8 +210,12 @@ addBlocksP :: (M.Map B.ByteString AttributeBlock -> ClassFile -> ClassFile)
               -> ClassParser ()
 addBlocksP f = do
   blocks <- many2 blockP
-  let blockMap = M.fromList [ (blockName b, b) | b <- blocks ]
+  let blockMap = mapFromListi [ (blockName b, b) | b <- blocks ]
   ST.modify $ \cf -> f blockMap cf
+
+
+mapFromListi l = M.fromList [ (B.concat [B.pack (show i), k], v)
+                            | (i, (k, v)) <- zip [0..] l ]
 
 
 attributeP :: ClassParser (B.ByteString, B.ByteString)
