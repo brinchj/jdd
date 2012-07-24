@@ -280,6 +280,9 @@ byteCodeP = do
       -- IADD: add two ints
       0x60 -> void $ push =<< VExpr <$> liftM2 E_add popI popI
 
+      -- ISUB: sub two ints
+      0x64 -> void $ push =<< VExpr <$> liftM2 E_sub popI popI
+
       -- IINC: increment by constant
       0x84 -> do (idx, val) <- liftM2 (,) u1 u1
                  append $! S_assign (getLocal idx) $! VExpr $!
