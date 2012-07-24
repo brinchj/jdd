@@ -203,10 +203,10 @@ byteCodeP = do
           Just code -> parse (ord code) >> go len
 
     parse code = case trace ("0x" ++ showHex code "") code of
-       -- NOP: needed to maintain correct line count for goto
+      -- NOP: needed to maintain correct line count for goto
       0x00 -> append S_nop
 
-       -- ACONST_NULL: @null@
+      -- ACONST_NULL: @null@
       0x01 -> void $ push $! VConst C_null
 
       -- ICONST_#: constants -1 to 5
