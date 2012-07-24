@@ -189,6 +189,13 @@ byteCodeP = do
         obj <- popI
         void $ push $! VLocal $! VarRef $! R_instanceField obj desc
 
+      -- PUTFIELD: get instance field
+      0xb5 -> do
+        Just (CF.FieldRef cs desc) <- askCP2
+        (val, obj) <- liftM2 (,) pop popI
+        append $! S_assign (VarRef $! R_instanceField obj desc) $!
+                  VLocal val
+
       -- INVOKEVIRTUAL: invoke instance method on object ref
       0xb6 -> do method <- methodP
                  params <- replicateM (length $ methodParams method) popI
