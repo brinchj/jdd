@@ -45,7 +45,7 @@ data Stmt = S_breakpoint
           | S_exitMonitor  Im
           | S_goto Label
           | S_if Expression Label   -- Only condition expressions are allowed
-          | S_invoke InvokeType MethodSignature [Im]
+          | S_invoke InvokeType MethodSignature [Im] Variable
           | S_lookupSwitch Label [(Int, Label)]
           | S_nop
           | S_ret Local
@@ -307,7 +307,16 @@ byteCodeP = do
       0xb7 -> do method <- methodP
                  params <- replicateM (length $ methodParams method) popI
                  objRef <- popI
-                 append $! S_invoke (I_special objRef) method params
+                 v      <- getFree
+                 append $! S_invoke (I_special objRef) method params v
+                 void $ push $! VLocal v
+
+      -- INVOKESTATIC: invoke a static method (no object ref)
+      0xb8 -> do method <- methodP
+                 params <- replicateM (length $ methodParams method) popI
+                 v      <- getFree
+                 append $! S_invoke I_static method params v
+                 void $ push $! VLocal v
 
       -- NEW: new object ref
       0xbb -> do Just (CF.ClassRef path) <- askCP2
@@ -334,11 +343,16 @@ byteCodeP = do
     -- pop as immediate value
     popI = ILocal <$> pop
 
-    -- push value to stack (assign to next stack variable)
-    push v = do
+    -- get free stack variable
+    getFree = do
       (x:xs) <- ST.gets $ jimpleFree . snd
       ST.modify $ \(m, j) -> (m, j { jimpleStack = x : jimpleStack j
                                    , jimpleFree  = xs                })
+      return x
+
+    -- push value to stack (assign to next stack variable)
+    push v = do
+      x <- getFree
       append $! S_assign x v
       return x
 
