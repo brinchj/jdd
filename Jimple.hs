@@ -189,6 +189,14 @@ byteCodeP = do
         obj <- popI
         void $ push $! VLocal $! VarRef $! R_instanceField obj desc
 
+      -- INVOKEVIRTUAL: invoke instance method on object ref
+      0xb6 -> do method <- methodP
+                 params <- replicateM (length $ methodParams method) popI
+                 objRef <- popI
+                 v      <- getFree
+                 append $! S_invoke (I_virtual objRef) method params v
+                 void $ push $! VLocal v
+
       -- INVOKESPECIAL: invoke instance method on object ref
       0xb7 -> do method <- methodP
                  params <- replicateM (length $ methodParams method) popI
