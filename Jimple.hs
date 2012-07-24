@@ -67,11 +67,11 @@ byteCodeP = do
   where
     go len = do
       pos <- ST.gets $ bytePos . snd
-      if pos >= len then return () else do
-        mcode <- optionMaybe nextByte
-        case mcode of
-          Nothing   -> return ()
-          Just code -> parse (ord code) >> go len
+      unless (pos >= len) $
+        do mcode <- optionMaybe nextByte
+           case mcode of
+             Nothing   -> return ()
+             Just code -> parse (ord code) >> go len
 
     parse code = case trace ("0x" ++ showHex code "") code of
       -- NOP: needed to maintain correct line count for goto
@@ -149,13 +149,13 @@ byteCodeP = do
       0x5f -> mapM_ pushL =<< replicateM 2 pop
 
       -- IADD: add two ints
-      0x60 -> void $ push =<< VExpr <$> liftM2 E_add popI popI
+      0x60 -> void $ push =<< VExpr <$> apply2 E_add
 
       -- ISUB: sub two ints
-      0x64 -> void $ push =<< VExpr <$> liftM2 (flip E_sub) popI popI
+      0x64 -> void $ push =<< VExpr <$> apply2 E_sub
 
       -- IREM: rem two ints
-      0x70 -> void $ push =<< VExpr <$> liftM2 (flip E_rem) popI popI
+      0x70 -> void $ push =<< VExpr <$> apply2 E_rem
 
       -- IINC: increment by constant
       0x84 -> do (idx, val) <- liftM2 (,) u1 u1
@@ -288,18 +288,19 @@ byteCodeP = do
       Just (CF.Method path (CF.Desc name tpe)) <- askCP2
       return $! methodSig' tpe $! MethodSig path name
 
+    -- apply binary operator to stack vars
+    apply2 op = liftM2 (flip op) popI popI
+
     -- general version of if for binary op
-    if2 op = do
-      con <- liftM2 (flip op) popI popI
-      append =<< S_if con <$> label2
+    if2 op = append =<< liftM2 S_if (apply2 op) label2
 
     -- array retrieval
     arrayGet tpe =
-      void . push =<< VLocal . VarRef <$> liftM2 (flip R_array) popI popI
+      void . push =<< VLocal . VarRef <$> apply2 R_array
 
     -- array retrieval
     arraySet tpe = do
-      ref <- VarRef <$> liftM2 (flip R_array) popI popI
+      ref <- VarRef <$> apply2 R_array
       void . append =<< S_assign ref . VLocal <$> pop
 
 
