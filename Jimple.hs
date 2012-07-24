@@ -329,6 +329,11 @@ byteCodeP = do
       0xbb -> do Just (CF.ClassRef path) <- askCP2
                  void $ push $! VExpr $! E_new $! R_object path
 
+      -- NEWARRAY: new array of primitive type
+      0xbc -> do tpe   <- fromIntegral <$> u1
+                 count <- popI
+                 void $ push $ VExpr $! E_newArray (atypes !! (tpe - 4)) count
+
       -- ARRAYLENGTH: get length of array ref
       0xbe -> void . push =<< VExpr . E_length <$> popI
 
@@ -426,6 +431,8 @@ byteCodeP = do
     types = [ T_int,       T_long,    T_float, T_double
             , T_object "", T_boolean, T_char,  T_short  ]
 
+    atypes = [ T_boolean,  T_char  , T_float, T_double
+             , T_byte   ,  T_short , T_int  , T_long   ]
 
 parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod)
 parseJimple cf bs =
