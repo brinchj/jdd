@@ -291,6 +291,11 @@ byteCodeP = do
                  append $! S_assign (getLocal idx) $! VExpr $!
                    E_add (ILocal $! getLocal idx) $! IConst $! C_int val
 
+      -- ?2?: convert types
+      _ | code `elem` [0x85..0x93] ->
+        void $ push . VLocal =<< pop
+
+
       -- IF_ICMP??: int cmp, eq to le
       _ | code `elem` [0x9f..0xa4] ->
         if2 $ [E_eq, E_ne, E_lt, E_ge, E_gt, E_le] !! (code - 0x9f)
