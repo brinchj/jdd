@@ -256,9 +256,13 @@ byteCodeP = do
       -- ?STORE: store value in local variable #, int to object ref
       _ | code `elem` [0x36..0x3a] -> void . pushL =<< getLocal <$> u1
 
-      -- ISTORE_#: store int value from stack in local variable 0 to 3
-      _ | code `elem` [0x3b..0x3e] ->
-        append =<< S_assign (getLocal $ code - 0x3b) . VLocal <$> pop
+      -- ?STORE_#: store int value from stack in local variable 0 to 3
+      _ | code `elem` [0x3b..0x4e] ->
+        append =<< S_assign (getLocal var) . VLocal <$> pop
+        where
+          val = code - 0x3b
+          var = val `mod` 4
+          tpe = types !! (val `div` 4) -- int to object ref
 
       -- ?ASTORE: array assignment, int to short
       _ | code `elem` [0x4f..0x56] -> arraySet $ types !! (code - 0x4f)
