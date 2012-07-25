@@ -166,6 +166,9 @@ byteCodeP = do
       _ | code `elem` [0x85..0x93] ->
         void $ push . VLocal =<< pop
 
+      -- IF??: int cmp with zero, eq to le
+      _ | code `elem` [0x99..0x9e] ->
+        ifz $[E_eq, E_ne, E_lt, E_ge, E_gt, E_le] !! (code - 0x99)
 
       -- IF_ICMP??: int cmp, eq to le
       _ | code `elem` [0x9f..0xa4] ->
@@ -311,8 +314,12 @@ byteCodeP = do
       Just (CF.Method path (CF.Desc name tpe)) <- askCP2
       return $! methodSig' tpe $! MethodSig path name
 
-    -- apply binary operator to stack vars
+    -- apply operator to stack vars
+    apply1 op = liftM op popI
     apply2 op = liftM2 (flip op) popI popI
+
+    -- general version of if for cmp with zero
+    ifz op = append =<< liftM2 S_if (apply1 $ flip op $ IConst $ C_int 0) label2
 
     -- general version of if for binary op
     if2 op = append =<< liftM2 S_if (apply2 op) label2
