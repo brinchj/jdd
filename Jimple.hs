@@ -233,11 +233,11 @@ byteCodeP = do
 
       -- IFNULL: if value is null jump
       0xc6 -> do v <- popI
-                 append =<< S_if (E_eq (IConst C_null) v) <$> liftM Label u2
+                 append =<< S_if (E_eq v $ IConst C_null) <$> label2
 
       -- IFNONNULL: if value is null jump
       0xc7 -> do v <- popI
-                 append =<< S_if (E_ne (IConst C_null) v) <$> liftM Label u2
+                 append =<< S_if (E_ne v $ IConst C_null) <$> label2
 
       -- UNASSIGNED: skip (can appear after last return; garbage)
       _ | code `elem` [0xcb..0xfd] -> return ()
