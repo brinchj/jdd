@@ -157,6 +157,9 @@ byteCodeP = do
       -- IREM: rem two ints
       0x70 -> void $ push =<< VExpr <$> apply2 E_rem
 
+      -- IAND: and two ints
+      0x7e -> void $ push =<< VExpr <$> apply2 E_and
+
       -- IINC: increment by constant
       0x84 -> do (idx, val) <- liftM2 (,) u1 u1
                  append $! S_assign (getLocal idx) $! VExpr $!
