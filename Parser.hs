@@ -38,15 +38,15 @@ import Data.Char (ord)
 
 
 data Version = Version { getMajor :: Integer, getMinor :: Integer}
-             deriving Show
+             deriving (Eq, Ord, Show)
 
 
 data Class = Class { classPath :: B.ByteString }
-           deriving (Show, Eq)
+           deriving (Eq, Ord, Show)
 
 data Desc = Desc { descName :: B.ByteString
                  , descType :: B.ByteString }
-          deriving Show
+          deriving (Eq, Ord, Show)
 
 data Constant = SignedInt Integer
               | Long      Integer
@@ -59,7 +59,7 @@ data Constant = SignedInt Integer
               | Method
                 { methodClass :: Class
                 , methodDesc  :: Desc }
-              deriving Show
+              deriving (Eq, Ord, Show)
 
 -- data Attribute = Attr
 --                  { attrName :: B.ByteString
@@ -75,7 +75,7 @@ data AttributeBlock = AttrBlock
                       , blockDesc  :: B.ByteString
                       , blockAttrs :: Attributes
                       }
-                    deriving Show
+                    deriving (Eq, Ord, Show)
 
 
 data ClassFile = ClassFile
@@ -88,7 +88,7 @@ data ClassFile = ClassFile
                  , classFields     :: M.Map B.ByteString AttributeBlock
                  , classMethods    :: M.Map B.ByteString AttributeBlock
                  }
-               deriving Show
+               deriving (Eq, Ord, Show)
 
 
 type ClassParser a = ParsecT B.ByteString () (ST.State ClassFile) a

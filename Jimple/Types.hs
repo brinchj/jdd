@@ -12,16 +12,16 @@ data JimpleMethod v = Method
                       , methodIdentStmts :: [IdentStmt v]
                       , methodStmts      :: [(Maybe Label, Stmt v)]
                       , methodExcepts    :: [Except v] }
-                  deriving Show
+                  deriving (Eq)
 
 data IdentStmt v = IStmt Local (Ref v)
-               deriving (Show, Functor, Foldable)
+               deriving (Eq, Ord, Functor, Foldable)
 
 data LocalDecl = LocalDecl Type String
-               deriving Show
+               deriving (Eq, Ord, Show)
 
 data Except v = Except (Ref v) Label Label Label
-            deriving (Show, Functor, Foldable)
+            deriving (Eq, Ord, Show, Functor, Foldable)
 
 
 data Stmt v = S_breakpoint
@@ -38,18 +38,21 @@ data Stmt v = S_breakpoint
           | S_returnVoid
           | S_tableSwitch v Label [(Int, Label)]
           | S_throw v
-          deriving (Functor, Foldable)
+          deriving (Eq, Ord, Functor, Foldable)
 
 
 data Value = VConst Constant
            | VLocal (Variable Value)
            | VExpr  (Expression Value)
+           deriving (Eq, Ord)
 
 data Label = Label Integer
+           deriving (Eq, Ord)
 instance Show Label where show (Label l) = show l
 
 
 data Local = Local String
+           deriving (Eq, Ord)
 instance Show Local where show (Local s) = s
 
 
@@ -59,11 +62,11 @@ data Constant = C_double Double
               | C_long   Integer
               | C_string B.ByteString
               | C_null
-              deriving Show
+              deriving (Eq, Ord, Show)
 
 data Variable v = VarRef (Ref v)
                 | VarLocal Local
-                deriving (Functor, Foldable)
+                deriving (Eq, Ord, Functor, Foldable)
 
 data Ref v = R_caughtException
            | R_parameter     Integer
@@ -72,7 +75,7 @@ data Ref v = R_caughtException
            | R_instanceField v CF.Desc
            | R_staticField      CF.Desc
            | R_object        CF.Class
-           deriving (Show, Functor, Foldable)
+           deriving (Eq, Ord, Show, Functor, Foldable)
 
 
 data Expression v = E_eq v v -- Conditions
@@ -104,26 +107,26 @@ data Expression v = E_eq v v -- Conditions
                   | E_newArray Type v
                   | E_new (Ref v)
                   | E_newMultiArray Type v [v] -- TODO: empty dims?
-                  deriving (Functor, Foldable)
+                  deriving (Eq, Ord, Functor, Foldable)
 
 data InvokeType v = I_interface v
                   | I_special   v
                   | I_virtual   v
                   | I_static
-                deriving (Show, Functor, Foldable)
+                deriving (Eq, Ord, Show, Functor, Foldable)
 
 data MethodSignature = MethodSig
                        { methodClass  :: CF.Class
                        , methodName   :: B.ByteString
                        , methodParams :: [Type]
                        , methodResult :: Type         }
-                     deriving Show
+                     deriving (Eq, Ord, Show)
 
 data Type = T_byte | T_char  | T_int | T_boolean | T_short
           | T_long | T_float | T_double
           | T_object String | T_addr | T_void
           | T_array Type
-          deriving (Show, Eq)
+          deriving (Eq, Ord, Show)
 
 
 
