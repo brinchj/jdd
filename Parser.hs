@@ -42,7 +42,7 @@ data Version = Version { getMajor :: Integer, getMinor :: Integer}
 
 
 data Class = Class { classPath :: B.ByteString }
-           deriving Show
+           deriving (Show, Eq)
 
 data Desc = Desc { descName :: B.ByteString
                  , descType :: B.ByteString }
@@ -159,10 +159,14 @@ constantPoolP = do
       case tag of
         0  -> E.throwError ("EOF" :: String)
 
-        1  -> Str              <$^> string2P
+        1  -> Str              <$^> string2P -- TODO: utf8
         3  -> SignedInt        <$^> s4
         5  -> Long             <$^> s8
+
         7  -> ClassRef . Class . unStr <$> get1
+
+        8  -> get1
+
         9  -> FieldRef `get2` unClassRef $ unDescRef
 
         10 -> Method  `get2` unClassRef $ unDescRef
