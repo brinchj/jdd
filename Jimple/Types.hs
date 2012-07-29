@@ -1,43 +1,49 @@
+{-# LANGUAGE DeriveFunctor, DeriveFoldable #-}
+
 module Jimple.Types where
+
+import Data.Foldable
 
 import qualified Data.ByteString as B
 import qualified Parser as CF
 
-data JimpleMethod = Method
-                    { methodLocalDecls :: [LocalDecl]
-                    , methodIdentStmts :: [IdentStmt]
-                    , methodStmts      :: [(Maybe Label, Stmt)]
-                    , methodExcepts    :: [Except] }
+data JimpleMethod v = Method
+                      { methodLocalDecls :: [LocalDecl]
+                      , methodIdentStmts :: [IdentStmt v]
+                      , methodStmts      :: [(Maybe Label, Stmt v)]
+                      , methodExcepts    :: [Except v] }
                   deriving Show
 
-data IdentStmt = IStmt Local Ref
-               deriving Show
+data IdentStmt v = IStmt Local (Ref v)
+               deriving (Show, Functor, Foldable)
 
 data LocalDecl = LocalDecl Type String
                deriving Show
 
-data Except = Except Ref Label Label Label
-            deriving Show
+data Except v = Except (Ref v) Label Label Label
+            deriving (Show, Functor, Foldable)
 
 
-data Stmt = S_breakpoint
-          | S_assign Variable Value
-          | S_enterMonitor Value
-          | S_exitMonitor  Value
+data Stmt v = S_breakpoint
+          | S_assign (Variable v) v
+          | S_enterMonitor v
+          | S_exitMonitor  v
           | S_goto Label
-          | S_if Expression Label   -- Only condition expressions are allowed
-          | S_invoke InvokeType MethodSignature [Value] Variable
+          | S_if (Expression v) Label   -- Only condition expressions are allowed
+          | S_invoke (InvokeType v) MethodSignature [v] (Variable v)
           | S_lookupSwitch Label [(Int, Label)]
           | S_nop
           | S_ret Local
-          | S_return Value
+          | S_return v
           | S_returnVoid
-          | S_tableSwitch Value Label [(Int, Label)]
-          | S_throw Value
+          | S_tableSwitch v Label [(Int, Label)]
+          | S_throw v
+          deriving (Functor, Foldable)
+
 
 data Value = VConst Constant
-           | VLocal Variable
-           | VExpr  Expression
+           | VLocal (Variable Value)
+           | VExpr  (Expression Value)
 
 data Label = Label Integer
 instance Show Label where show (Label l) = show l
@@ -55,54 +61,56 @@ data Constant = C_double Double
               | C_null
               deriving Show
 
-data Variable = VarRef Ref | VarLocal Local
+data Variable v = VarRef (Ref v)
+                | VarLocal Local
+                deriving (Functor, Foldable)
 
-data Ref = R_caughtException
-         | R_parameter     Integer
-         | R_this
-         | R_array         Value Value
-         | R_instanceField Value CF.Desc
-         | R_staticField      CF.Desc
-         | R_object        CF.Class
-         deriving Show
-
-
-data Expression = E_eq Value Value -- Conditions
-                | E_ge Value Value
-                | E_le Value Value
-                | E_lt Value Value
-                | E_ne Value Value
-                | E_gt Value Value
-
-                | E_add  Value Value -- Binary ops
-                | E_sub  Value Value
-                | E_and  Value Value
-                | E_or   Value Value
-                | E_xor  Value Value
-                | E_shl  Value Value
-                | E_shr  Value Value
-                | E_ushl Value Value
-                | E_ushr Value Value
-                | E_cmp  Value Value
-                | E_cmpg Value Value
-                | E_cmpl Value Value
-                | E_mul Value Value
-                | E_div Value Value
-                | E_rem Value Value
-
-                | E_length Value
-                | E_cast   Type Value
-                | E_instanceOf Value Ref
-                | E_newArray Type Value
-                | E_new Ref
-                | E_newMultiArray Type Value [Value] -- TODO: empty dims?
+data Ref v = R_caughtException
+           | R_parameter     Integer
+           | R_this
+           | R_array         v v
+           | R_instanceField v CF.Desc
+           | R_staticField      CF.Desc
+           | R_object        CF.Class
+           deriving (Show, Functor, Foldable)
 
 
-data InvokeType = I_interface Value
-                | I_special   Value
-                | I_virtual   Value
-                | I_static
-                deriving Show
+data Expression v = E_eq v v -- Conditions
+                  | E_ge v v
+                  | E_le v v
+                  | E_lt v v
+                  | E_ne v v
+                  | E_gt v v
+
+                  | E_add  v v -- Binary ops
+                  | E_sub  v v
+                  | E_and  v v
+                  | E_or   v v
+                  | E_xor  v v
+                  | E_shl  v v
+                  | E_shr  v v
+                  | E_ushl v v
+                  | E_ushr v v
+                  | E_cmp  v v
+                  | E_cmpg v v
+                  | E_cmpl v v
+                  | E_mul  v v
+                  | E_div  v v
+                  | E_rem  v v
+
+                  | E_length v
+                  | E_cast   Type v
+                  | E_instanceOf v (Ref v)
+                  | E_newArray Type v
+                  | E_new (Ref v)
+                  | E_newMultiArray Type v [v] -- TODO: empty dims?
+                  deriving (Functor, Foldable)
+
+data InvokeType v = I_interface v
+                  | I_special   v
+                  | I_virtual   v
+                  | I_static
+                deriving (Show, Functor, Foldable)
 
 data MethodSignature = MethodSig
                        { methodClass  :: CF.Class
@@ -120,7 +128,7 @@ data Type = T_byte | T_char  | T_int | T_boolean | T_short
 
 
 
-instance Show Stmt where
+instance Show v => Show (Stmt v) where
   show (S_breakpoint)    = "breakpoint"
 
   show (S_assign x a)    = show x ++ " <- " ++ show a
@@ -148,9 +156,9 @@ instance Show Stmt where
   show (S_throw i) = "throw " ++ show i
 
 
-instance Show Variable where
+instance Show v => Show (Variable v) where
   show (VarRef   ref) = '@' : show ref
-  show (VarLocal v  ) = show v
+  show (VarLocal var) = show var
 
 instance Show Value where
   show (VConst c) = show c
@@ -158,7 +166,7 @@ instance Show Value where
   show (VExpr  e) = show e
 
 
-instance Show Expression where
+instance Show v => Show (Expression v) where
   show (E_eq a b) = show a ++ " == " ++ show b
   show (E_ge a b) = show a ++ " >= " ++ show b
   show (E_le a b) = show a ++ " <= " ++ show b

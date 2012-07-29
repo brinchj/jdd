@@ -52,8 +52,8 @@ methodSig' bs meth = either (error $ "methodSig: " ++ show bs) id $
                      methodSig bs meth
 
 
-data JimpleST = JimpleST { jimpleFree  :: [Variable]
-                         , jimpleStack :: [Variable]
+data JimpleST = JimpleST { jimpleFree  :: [Variable Value]
+                         , jimpleStack :: [Variable Value]
                          , bytePos     :: Integer
                          }
 
@@ -347,7 +347,7 @@ byteCodeP = do
     atypes = [ T_boolean,  T_char  , T_float, T_double
              , T_byte   ,  T_short , T_int  , T_long   ]
 
-parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod)
+parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod Value)
 parseJimple cf bs =
   go $! ST.runState (R.runReaderT (runPT byteCodeP () "" bs) cf)
         (Method [] [] [] [],
