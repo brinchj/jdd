@@ -57,12 +57,6 @@ data Constant = C_double Double
 
 data Variable = VarRef Ref | VarLocal Local
 
-data RValue = RV_ref   Ref
-            | RV_const Constant
-            | RV_expr  Expression
-            | RV_local Local
-            | RV_nnsa  Integer -- TODO: next_next_statement_address ??
-            deriving Show
 data Ref = R_caughtException
          | R_parameter     Integer
          | R_this
