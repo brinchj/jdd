@@ -22,18 +22,18 @@ data Except = Except Ref Label Label Label
 
 data Stmt = S_breakpoint
           | S_assign Variable Value
-          | S_enterMonitor Im
-          | S_exitMonitor  Im
+          | S_enterMonitor Value
+          | S_exitMonitor  Value
           | S_goto Label
           | S_if Expression Label   -- Only condition expressions are allowed
-          | S_invoke InvokeType MethodSignature [Im] Variable
+          | S_invoke InvokeType MethodSignature [Value] Variable
           | S_lookupSwitch Label [(Int, Label)]
           | S_nop
           | S_ret Local
-          | S_return Im
+          | S_return Value
           | S_returnVoid
-          | S_tableSwitch Im Label [(Int, Label)]
-          | S_throw Im
+          | S_tableSwitch Value Label [(Int, Label)]
+          | S_throw Value
 
 data Value = VConst Constant
            | VLocal Variable
@@ -41,9 +41,6 @@ data Value = VConst Constant
 
 data Label = Label Integer
 instance Show Label where show (Label l) = show l
-
-data Im = IConst Constant
-        | ILocal Variable
 
 
 data Local = Local String
@@ -69,47 +66,47 @@ data RValue = RV_ref   Ref
 data Ref = R_caughtException
          | R_parameter     Integer
          | R_this
-         | R_array         Im Im
-         | R_instanceField Im CF.Desc
+         | R_array         Value Value
+         | R_instanceField Value CF.Desc
          | R_staticField      CF.Desc
          | R_object        CF.Class
          deriving Show
 
 
-data Expression = E_eq Im Im -- Conditions
-                | E_ge Im Im
-                | E_le Im Im
-                | E_lt Im Im
-                | E_ne Im Im
-                | E_gt Im Im
+data Expression = E_eq Value Value -- Conditions
+                | E_ge Value Value
+                | E_le Value Value
+                | E_lt Value Value
+                | E_ne Value Value
+                | E_gt Value Value
 
-                | E_add  Im Im -- Binary ops
-                | E_sub  Im Im
-                | E_and  Im Im
-                | E_or   Im Im
-                | E_xor  Im Im
-                | E_shl  Im Im
-                | E_shr  Im Im
-                | E_ushl Im Im
-                | E_ushr Im Im
-                | E_cmp  Im Im
-                | E_cmpg Im Im
-                | E_cmpl Im Im
-                | E_mul Im Im
-                | E_div Im Im
-                | E_rem Im Im
+                | E_add  Value Value -- Binary ops
+                | E_sub  Value Value
+                | E_and  Value Value
+                | E_or   Value Value
+                | E_xor  Value Value
+                | E_shl  Value Value
+                | E_shr  Value Value
+                | E_ushl Value Value
+                | E_ushr Value Value
+                | E_cmp  Value Value
+                | E_cmpg Value Value
+                | E_cmpl Value Value
+                | E_mul Value Value
+                | E_div Value Value
+                | E_rem Value Value
 
-                | E_length Im
-                | E_cast   Type Im
-                | E_instanceOf Im Ref
-                | E_newArray Type Im
+                | E_length Value
+                | E_cast   Type Value
+                | E_instanceOf Value Ref
+                | E_newArray Type Value
                 | E_new Ref
-                | E_newMultiArray Type Im [Im] -- TODO: empty dims?
+                | E_newMultiArray Type Value [Value] -- TODO: empty dims?
 
 
-data InvokeType = I_interface Im
-                | I_special   Im
-                | I_virtual   Im
+data InvokeType = I_interface Value
+                | I_special   Value
+                | I_virtual   Value
                 | I_static
                 deriving Show
 
@@ -124,7 +121,7 @@ data Type = T_byte | T_char  | T_int | T_boolean | T_short
           | T_long | T_float | T_double
           | T_object String | T_addr | T_void
           | T_array Type
-          deriving Show
+          deriving (Show, Eq)
 
 
 
@@ -156,11 +153,6 @@ instance Show Stmt where
 
   show (S_throw i) = "throw " ++ show i
 
-
-
-instance Show Im where
-  show (IConst c) = show c
-  show (ILocal l) = show l
 
 instance Show Variable where
   show (VarRef   ref) = '@' : show ref
@@ -203,3 +195,5 @@ instance Show Expression where
   show (E_newArray t i) = "new " ++ show t ++ "[" ++ show i ++ "]"
   show (E_new r) = "new " ++ show r
   show (E_newMultiArray t i is) = "new " ++ show t ++ "(" ++ show (i, is) ++ ")"
+
+

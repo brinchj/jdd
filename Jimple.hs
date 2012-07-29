@@ -163,7 +163,7 @@ byteCodeP = do
       -- IINC: increment by constant
       0x84 -> do (idx, val) <- liftM2 (,) u1 u1
                  append $! S_assign (getLocal idx) $! VExpr $!
-                   E_add (ILocal $! getLocal idx) $! IConst $! C_int val
+                   E_add (VLocal $! getLocal idx) $! VConst $! C_int val
 
       -- ?2?: convert types
       _ | code `elem` [0x85..0x93] ->
@@ -181,10 +181,10 @@ byteCodeP = do
       0xa7 -> append =<< S_goto <$> label2
 
       -- IRETURN: return int value from stack
-      0xac -> append =<< S_return . ILocal <$> pop
+      0xac -> append =<< S_return . VLocal <$> pop
 
       -- ARETURN: return object ref from stack
-      0xb0 -> append =<< S_return . ILocal <$> pop
+      0xb0 -> append =<< S_return . VLocal <$> pop
 
       -- RETURN: return void
       0xb1 -> append $! S_returnVoid
@@ -239,11 +239,11 @@ byteCodeP = do
 
       -- IFNULL: if value is null jump
       0xc6 -> do v <- popI
-                 append =<< S_if (E_eq v $ IConst C_null) <$> label2
+                 append =<< S_if (E_eq v $ VConst C_null) <$> label2
 
       -- IFNONNULL: if value is null jump
       0xc7 -> do v <- popI
-                 append =<< S_if (E_ne v $ IConst C_null) <$> label2
+                 append =<< S_if (E_ne v $ VConst C_null) <$> label2
 
       -- UNASSIGNED: skip (can appear after last return; garbage)
       _ | code `elem` [0xcb..0xfd] -> return ()
@@ -261,7 +261,7 @@ byteCodeP = do
       return x
 
     -- pop as immediate value
-    popI = ILocal <$> pop
+    popI = VLocal <$> pop
 
     -- get free stack variable
     getFree = do
@@ -322,7 +322,7 @@ byteCodeP = do
     apply2 op = liftM2 (flip op) popI popI
 
     -- general version of if for cmp with zero
-    ifz op = append =<< liftM2 S_if (apply1 $ flip op $ IConst $ C_int 0) label2
+    ifz op = append =<< liftM2 S_if (apply1 $ flip op $ VConst $ C_int 0) label2
 
     -- general version of if for binary op
     if2 op = append =<< liftM2 S_if (apply2 op) label2
