@@ -54,19 +54,21 @@ methodSig' bs meth = either (error $ "methodSig: " ++ show bs) id $
 
 data JimpleST = JimpleST { jimpleFree  :: [Variable Value]
                          , jimpleStack :: [Variable Value]
-                         , bytePos     :: Integer
+                         , thisPos     :: Integer
+                         , prevPos     :: Integer
                          }
 
 byteCodeP = do
   maxStack <- u2
   maxLocals <- u2
   codeLength <- u4
-  ST.modify $ \(m, j) -> (m, j { bytePos = 0 })
+  ST.modify $ \(m, j) -> (m, j { thisPos = 0, prevPos = 0 })
   go codeLength
 
   where
     go len = do
-      pos <- ST.gets $ bytePos . snd
+      pos <- ST.gets $ thisPos . snd
+      ST.modify $ \(s, j) -> (s, j { prevPos = pos })
       unless (pos >= len) $
         do mcode <- optionMaybe nextByte
            case mcode of
@@ -281,13 +283,13 @@ byteCodeP = do
 
     -- append a label-less statement to code
     append cmd = do
-      pos <- ST.gets $ bytePos . snd
+      pos <- ST.gets $ prevPos . snd
       ST.modify $ \(m, l) ->
         (m { methodStmts = methodStmts m ++ [(Just $ Label pos, cmd)] }, l)
 
     -- read and register 1 byte
     nextByte = do b <- anyChar
-                  ST.modify $ \(m, j) -> (m, j { bytePos = 1 + bytePos j })
+                  ST.modify $ \(m, j) -> (m, j { thisPos = 1 + thisPos j })
                   return b
 
     -- read 1-byte int
@@ -351,7 +353,7 @@ parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod V
 parseJimple cf bs =
   go $! ST.runState (R.runReaderT (runPT byteCodeP () "" bs) cf)
         (Method [] [] [] [],
-         JimpleST stackVars [] 0)
+         JimpleST stackVars [] 0 0)
   where
     stackVars = map (VarLocal . Local . ("s"++) . show) [1..]
 
