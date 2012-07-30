@@ -6,6 +6,7 @@ import qualified Parser as CF
 
 import Control.Monad
 import qualified Control.Monad.State as ST
+import qualified Control.Monad.Writer as W
 
 import qualified Data.ByteString as B
 import qualified Data.Foldable as F
@@ -56,11 +57,14 @@ mapCleanup (Method a b ops d) = Method a b (go ops) d
   where
     go s = reverse $ catMaybes $ ST.evalState (mapM go' $ reverse s) S.empty
 
-    go' (l@(_, s@(S_assign (VarLocal v) e))) = do
+    go' (l@(label, s@(S_assign (VarLocal v) e))) = do
       alive <- ST.gets $ S.member v
       when alive $ addAlive s
-      return $ do guard (not (pureValue e) || alive)
-                  return l
+      let canRemove = not alive && pureValue e
+      case label of
+        Nothing | canRemove -> return Nothing
+        Just _  | canRemove -> return $ Just (label, S_nop)
+        _ -> return $ Just l
 
     go' (l@(_, st)) = addAlive st >> return (Just l)
 
@@ -86,3 +90,24 @@ mapInline (Method a b ops d) = Method a b (go ops) d
 
     update (S_assign v e) | pureValue e = ST.modify $ M.insert v e
     update _                            = return ()
+
+
+mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
+  where
+    go s = map f s'
+      where
+       (s', labels) = W.runWriter $ mapM go' s
+
+       f (Just l, s) | l `elem` labels = (Just l,  s)
+                     | otherwise       = (Nothing, s)
+
+    go' (Just pos, S_if c next) = tellLabel (S_if c) pos next
+    go' (Just pos, S_goto next) = tellLabel S_goto   pos next
+
+    -- TODO: S_lookupSwitch, S_tableSwitch
+    go' s = return s
+
+
+    tellLabel f (Label pos) (Label next) = do
+      W.tell [Label $! pos + next]
+      return (Just $ Label pos, f $ Label $ pos + next)

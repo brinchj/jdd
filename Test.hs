@@ -19,14 +19,15 @@ list path =
 
 run path method = do
   cf <- CF.parseClassFile <$> B.readFile path
-  print cf
+  -- print cf
   let m = CF.classMethods cf Map.! method
   let code = CF.blockAttrs m Map.! "Code"
   print m
   let (err, meth) = parseJimple cf code
-      maps = mapDecrypt . mapCleanup . mapInline
-      meth'@(Method a b c d) = mapFix maps meth
-  mapM_ (print . snd) c
+      mapSimple = mapDecrypt . mapCleanup . mapInline
+      mapsF = mapFix mapSimple . mapCorrectLabels
+      meth'@(Method a b c d) = mapsF meth
+  mapM_ (print) c
   maybe (return ()) print err
 
   return meth'
