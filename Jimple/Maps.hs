@@ -70,6 +70,7 @@ mapCleanup (Method a b ops d) = Method a b (go ops) d
         f s (VLocal (VarLocal v)) = S.insert v s
         f s (VExpr  e) = F.foldl f s e
         f s (VConst c) = s
+        f s _ = s
 
 
 mapInline (Method a b ops d) = Method a b (go ops) d
@@ -84,6 +85,7 @@ mapInline (Method a b ops d) = Method a b (go ops) d
     inline m (val@(VLocal (var@(VarLocal l)))) = maybe val id $ M.lookup var m
     inline m (c@(VConst _)) = c
     inline m (VExpr e)  = VExpr $ inline m `fmap` e
+    inline m e = e
 
     update (S_assign v e) | pureValue e = ST.modify $ M.insert v e
     update _ = return ()
