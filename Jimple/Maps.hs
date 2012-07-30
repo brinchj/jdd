@@ -59,17 +59,15 @@ mapCleanup (Method a b ops d) = Method a b (go ops) d
     go' (l@(_, s@(S_assign (VarLocal v) e))) = do
       alive <- ST.gets $ S.member v
       when alive $ addAlive s
-      return $ if (pureValue e && not alive)
-               then Nothing
-               else Just l
+      return $ do guard (not (pureValue e) || alive)
+                  return l
 
-    go' (l@(_, st)) = addAlive st >> (return $ Just l)
+    go' (l@(_, st)) = addAlive st >> return (Just l)
 
-    addAlive st = ST.modify $ S.union $ F.foldl f S.empty st
+    addAlive = ST.modify . S.union . F.foldl f S.empty
       where
         f s (VLocal (VarLocal v)) = S.insert v s
         f s (VExpr  e) = F.foldl f s e
-        f s (VConst c) = s
         f s _ = s
 
 
@@ -78,14 +76,13 @@ mapInline (Method a b ops d) = Method a b (go ops) d
     go s = ST.evalState (mapM go' s) M.empty
 
     go' (l, s) = do
-      (m :: M.Map (Variable Value) Value) <- ST.get
+      m <- ST.get
       update s
       return (l, inline m `fmap` s)
 
-    inline m (val@(VLocal (var@(VarLocal l)))) = maybe val id $ M.lookup var m
-    inline m (c@(VConst _)) = c
+    inline m (val@(VLocal (var@(VarLocal l)))) = fromMaybe val $ M.lookup var m
     inline m (VExpr e)  = VExpr $ inline m `fmap` e
     inline m e = e
 
     update (S_assign v e) | pureValue e = ST.modify $ M.insert v e
-    update _ = return ()
+    update _                            = return ()
