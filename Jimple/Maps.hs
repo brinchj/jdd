@@ -84,7 +84,8 @@ mapInline (Method a b ops d) = Method a b (go ops) d
       update s
       return (l, inline m `fmap` s)
 
-    inline m (val@(VLocal (var@(VarLocal l)))) = fromMaybe val $ M.lookup var m
+    inline m (val@(VLocal (var@(VarLocal (Local ('s':_)))))) =
+      fromMaybe val $ M.lookup var m
     inline m (VExpr e)  = VExpr $ inline m `fmap` e
     inline m e = e
 
