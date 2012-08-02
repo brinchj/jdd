@@ -19,7 +19,7 @@ data JimpleMethod v = Method
 data IdentStmt v = IStmt Local (Ref v)
                deriving (Eq, Ord, Show, Functor, F.Foldable)
 
-data LocalDecl = LocalDecl Type String
+data LocalDecl = LocalDecl Type Local
                deriving (Eq, Ord, Show)
 
 data Except v = Except (Ref v) Label Label Label

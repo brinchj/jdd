@@ -1,4 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings
+           , RecordWildCards
+  #-}
 
 module Jimple where
 
@@ -6,8 +8,10 @@ import qualified Data.ByteString.Char8 as B
 
 import Debug.Trace
 
-import Numeric
+import Data.Bits
 import Data.Char
+import Numeric
+
 import qualified Data.Map as M
 
 import Text.Parsec.ByteString
@@ -43,6 +47,7 @@ typeP = do
       T_array (dims + 1) <$> typeP
     _   -> fail $ "Unknown type tag: " ++ show tag
 
+
 methodSigP :: ([Type] -> Type -> MethodSignature) -> Parser MethodSignature
 methodSigP meth = liftM2 meth paramsP resultP
   where
@@ -54,6 +59,7 @@ methodSig bs meth = runP (methodSigP meth) () "methodSig" bs
 
 methodSig' bs meth = either (error $ "methodSig: " ++ show bs) id $
                      methodSig bs meth
+
 
 
 data JimpleST = JimpleST { jimpleFree  :: [Variable Value]
@@ -359,8 +365,8 @@ byteCodeP = do
              , T_byte   ,  T_short , T_int  , T_long   ]
 
 parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod Value)
-parseJimple cf bs =
-  go $! ST.runState (R.runReaderT (runPT byteCodeP () "" bs) cf)
+parseJimple cf method =
+  go $! ST.runState (R.runReaderT goM cf)
         (Method [] [] [] [],
          JimpleST stackVars [] 0 0)
   where
@@ -369,4 +375,21 @@ parseJimple cf bs =
     go (Left err, (meth, jst)) = (Just err, meth)
     go (Right _,  (meth, jst)) = (Nothing,  meth)
 
+    CF.AttrBlock{..} = CF.classMethods cf M.! method
+    code = blockAttrs M.! "Code"
 
+    goM = do
+      let MethodSig _ _ vs r = methodSig' blockDesc $
+                               MethodSig (CF.Class "") blockDesc
+      ST.modify $ \(m, j) -> (m { methodLocalDecls = map decl $ zip vs ns },
+                              j)
+      unless isStatic $
+        ST.modify $ \(m, j) -> (m { methodIdentStmts = [IStmt (Local "l0")
+                                                        R_this]}, j)
+
+      runPT byteCodeP () "" code
+
+    decl (t, n) = LocalDecl t $ Local $ 'l' : show n
+
+    ns = if isStatic then [0..] else [1..]
+    isStatic = blockFlags .&. 8 == 1
