@@ -219,27 +219,24 @@ byteCodeP = do
       0xb6 -> do method <- methodP
                  params <- replicateM (length $ methodParams method) popI
                  objRef <- popI
-                 v      <- getFree
+                 v      <- resultVar method
                  append $! S_assign v $ VExpr $
                            E_invoke (I_virtual objRef) method params
-                 void $ push $! VLocal v
 
       -- INVOKESPECIAL: invoke instance method on object ref
       0xb7 -> do method <- methodP
                  params <- replicateM (length $ methodParams method) popI
                  objRef <- popI
-                 v      <- getFree
+                 v      <- resultVar method
                  append $! S_assign v $ VExpr $
                            E_invoke (I_special objRef) method params
-                 void $ push $! VLocal v
 
       -- INVOKESTATIC: invoke a static method (no object ref)
       0xb8 -> do method <- methodP
                  params <- replicateM (length $ methodParams method) popI
-                 v      <- getFree
+                 v      <- resultVar method
                  append $! S_assign v $ VExpr $
                            E_invoke I_static method params
-                 void $ push $! VLocal v
 
       -- NEW: new object ref
       0xbb -> do Just (CF.ClassRef path) <- askCP2
@@ -357,6 +354,10 @@ byteCodeP = do
       ref <- VarRef <$> apply2 R_array
       void . append =<< S_assign ref . VLocal <$> pop
 
+
+    -- allocate new variable for result of method call unless it's void
+    resultVar m | methodResult m == T_void = return $ VarLocal $ Local "_"
+                | otherwise                = getFree
 
     -- Convert constant pool value to VConst
     cpToVC (CF.Str s) = VConst $! C_string s
