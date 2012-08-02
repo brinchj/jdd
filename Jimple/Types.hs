@@ -1,9 +1,12 @@
-{-# LANGUAGE DeriveFunctor, DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor
+           , DeriveFoldable
+           , MultiParamTypeClasses
+           , FlexibleInstances
+  #-}
 
 module Jimple.Types where
 
-import Data.Foldable
-
+import qualified Data.Foldable as F
 import qualified Data.ByteString as B
 import qualified Parser as CF
 
@@ -15,13 +18,13 @@ data JimpleMethod v = Method
                   deriving (Eq)
 
 data IdentStmt v = IStmt Local (Ref v)
-               deriving (Eq, Ord, Functor, Foldable)
+               deriving (Eq, Ord, Functor, F.Foldable)
 
 data LocalDecl = LocalDecl Type String
                deriving (Eq, Ord, Show)
 
 data Except v = Except (Ref v) Label Label Label
-            deriving (Eq, Ord, Show, Functor, Foldable)
+            deriving (Eq, Ord, Show, Functor, F.Foldable)
 
 
 data Stmt v = S_breakpoint
@@ -38,7 +41,7 @@ data Stmt v = S_breakpoint
           | S_returnVoid
           | S_tableSwitch v Label [(Int, Label)]
           | S_throw v
-          deriving (Eq, Ord, Functor, Foldable)
+          deriving (Eq, Ord, Functor, F.Foldable)
 
 
 data Value = VConst Constant
@@ -66,7 +69,7 @@ data Constant = C_double Double
 
 data Variable v = VarRef (Ref v)
                 | VarLocal Local
-                deriving (Eq, Ord, Functor, Foldable)
+                deriving (Eq, Ord, Functor, F.Foldable)
 
 data Ref v = R_caughtException
            | R_parameter     Integer
@@ -75,7 +78,7 @@ data Ref v = R_caughtException
            | R_instanceField v CF.Desc
            | R_staticField      CF.Desc
            | R_object        CF.Class
-           deriving (Eq, Ord, Show, Functor, Foldable)
+           deriving (Eq, Ord, Show, Functor, F.Foldable)
 
 
 data Expression v = E_eq v v -- Conditions
@@ -107,13 +110,13 @@ data Expression v = E_eq v v -- Conditions
                   | E_newArray Type v
                   | E_new (Ref v)
                   | E_newMultiArray Type v [v] -- TODO: empty dims?
-                  deriving (Eq, Ord, Functor, Foldable)
+                  deriving (Eq, Ord, Functor, F.Foldable)
 
 data InvokeType v = I_interface v
                   | I_special   v
                   | I_virtual   v
                   | I_static
-                deriving (Eq, Ord, Show, Functor, Foldable)
+                deriving (Eq, Ord, Show, Functor, F.Foldable)
 
 data MethodSignature = MethodSig
                        { methodClass  :: CF.Class
@@ -125,7 +128,8 @@ data MethodSignature = MethodSig
 data Type = T_byte | T_char  | T_int | T_boolean | T_short
           | T_long | T_float | T_double
           | T_object String | T_addr | T_void
-          | T_array Type
+          | T_array Int Type
+          | T_unknown
           deriving (Eq, Ord, Show)
 
 
@@ -202,3 +206,44 @@ instance Show v => Show (Expression v) where
   show (E_newMultiArray t i is) = "new " ++ show t ++ "(" ++ show (i, is) ++ ")"
 
 
+
+
+class TypeableJ a v where
+  typeOf :: a -> Either (Variable v) Type
+
+
+instance TypeableJ Type v where
+  typeOf = Right
+
+
+instance TypeableJ Constant v where
+  typeOf c = Right $ case c of
+    C_int    _ -> T_int
+    C_double _ -> T_double
+    C_float  _ -> T_float
+    C_long   _ -> T_long
+    C_string _ -> T_object "java/lang/String"
+    C_null     -> T_unknown
+
+
+
+instance TypeableJ (Variable v) v where
+  typeOf = Left
+
+
+instance TypeableJ v v => TypeableJ (Expression v) v where
+  typeOf (E_length v) = typeOf v
+  typeOf (E_cast t v) = Right t
+  typeOf (E_instanceOf v _) = Right T_boolean
+  typeOf (E_newArray t v) = Right $ T_array 1 t
+  typeOf (E_new ref) = Left $ VarRef ref
+  typeOf (E_newMultiArray t v _) = Right $ T_array undefined t
+  -- TODO: comparisons
+  -- default (bin ops)
+  typeOf e = typeOf $ head $ F.toList e
+
+
+instance TypeableJ Value Value where
+  typeOf (VConst c) = typeOf c
+  typeOf (VLocal v) = Left v
+  typeOf (VExpr  e) = typeOf e

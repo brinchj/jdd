@@ -36,7 +36,9 @@ typeP = do
     'S' -> return T_short
     'Z' -> return T_boolean
     'L' -> T_object <$> anyChar `manyTill` char ';'
-    '[' -> T_array  <$> typeP
+    '[' -> do
+      dims <- length <$> (option [] $ many1 $ char '[')
+      T_array (dims + 1) <$> typeP
     _   -> fail $ "Unknown type tag: " ++ show tag
 
 methodSigP :: ([Type] -> Type -> MethodSignature) -> Parser MethodSignature
