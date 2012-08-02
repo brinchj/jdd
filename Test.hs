@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings, DeriveFoldable #-}
 
+module Test where
+
 import Data.Foldable hiding (mapM_)
 
 import Jimple
