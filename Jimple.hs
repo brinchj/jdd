@@ -61,6 +61,9 @@ methodSig' bs meth = either (error $ "methodSig: " ++ show bs) id $
                      methodSig bs meth
 
 
+modifyFst f = ST.modify $ \(a, b) -> (f a, b)
+modifySnd f = ST.modify $ \(a, b) -> (a, f b)
+
 
 data JimpleST = JimpleST { jimpleFree  :: [Variable Value]
                          , jimpleStack :: [Variable Value]
@@ -78,7 +81,7 @@ byteCodeP = do
   where
     go len = do
       pos <- ST.gets $ thisPos . snd
-      ST.modify $ \(s, j) -> (s, j { prevPos = pos })
+      modifySnd $ \j -> j { prevPos = pos }
       unless (pos >= len) $
         do mcode <- optionMaybe nextByte
            case mcode of
@@ -274,7 +277,7 @@ byteCodeP = do
     -- pop a value from the stack (return first stack variable)
     pop = do
       (x:xs) <- ST.gets $ jimpleStack . snd
-      ST.modify $ \(m, j) -> (m, j { jimpleStack = xs })
+      modifySnd $ \j -> j { jimpleStack = xs }
       return x
 
     -- pop as immediate value
@@ -283,8 +286,8 @@ byteCodeP = do
     -- get free stack variable
     getFree = do
       (x:xs) <- ST.gets $ jimpleFree . snd
-      ST.modify $ \(m, j) -> (m, j { jimpleStack = x : jimpleStack j
-                                   , jimpleFree  = xs                })
+      modifySnd $ \j -> j { jimpleStack = x : jimpleStack j
+                          , jimpleFree  = xs                }
       return x
 
     -- push value to stack (assign to next stack variable)
@@ -299,12 +302,12 @@ byteCodeP = do
     -- append a label-less statement to code
     append cmd = do
       pos <- ST.gets $ prevPos . snd
-      ST.modify $ \(m, l) ->
-        (m { methodStmts = methodStmts m ++ [(Just $ Label pos, cmd)] }, l)
+      modifyFst $ \m ->
+        m { methodStmts = methodStmts m ++ [(Just $ Label pos, cmd)] }
 
     -- read and register 1 byte
     nextByte = do b <- anyChar
-                  ST.modify $ \(m, j) -> (m, j { thisPos = 1 + thisPos j })
+                  modifySnd $ \j -> j { thisPos = 1 + thisPos j }
                   return b
 
     -- read 1-byte int
@@ -381,11 +384,9 @@ parseJimple cf method =
     goM = do
       let MethodSig _ _ vs r = methodSig' blockDesc $
                                MethodSig (CF.Class "") blockDesc
-      ST.modify $ \(m, j) -> (m { methodLocalDecls = map decl $ zip vs ns },
-                              j)
+      modifyFst $ \m -> m { methodLocalDecls = map decl $ zip vs ns }
       unless isStatic $
-        ST.modify $ \(m, j) -> (m { methodIdentStmts = [IStmt (Local "l0")
-                                                        R_this]}, j)
+        modifyFst $ \m -> m { methodIdentStmts = [IStmt (Local "l0") R_this]}
 
       runPT byteCodeP () "" code
 
