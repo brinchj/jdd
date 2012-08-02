@@ -26,6 +26,7 @@ import Control.Applicative
 
 import qualified Parser as CF
 
+import Util
 import Jimple.Types
 
 
@@ -60,9 +61,6 @@ methodSig bs meth = runP (methodSigP meth) () "methodSig" bs
 methodSig' bs meth = either (error $ "methodSig: " ++ show bs) id $
                      methodSig bs meth
 
-
-modifyFst f = ST.modify $ \(a, b) -> (f a, b)
-modifySnd f = ST.modify $ \(a, b) -> (a, f b)
 
 
 data JimpleST = JimpleST { jimpleFree  :: [Variable Value]
