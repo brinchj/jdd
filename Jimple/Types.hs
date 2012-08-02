@@ -6,8 +6,10 @@
 
 module Jimple.Types where
 
-import qualified Data.Foldable as F
+import Data.Either
 import qualified Data.ByteString as B
+import qualified Data.List as L
+import qualified Data.Foldable as F
 import qualified Parser as CF
 
 data JimpleMethod v = Method
@@ -76,8 +78,8 @@ data Ref v = R_caughtException
            | R_this
            | R_array         v v
            | R_instanceField v CF.Desc
-           | R_staticField      CF.Desc
-           | R_object        CF.Class
+           | R_staticField     CF.Desc
+           | R_object          CF.Class
            deriving (Eq, Ord, Show, Functor, F.Foldable)
 
 
@@ -207,17 +209,22 @@ instance Show v => Show (Expression v) where
 
 
 
+type TypeV v = Either Type (Variable v)
 
 class TypeableJ a v where
-  typeOf :: a -> Either (Variable v) Type
+  typeOf :: a -> TypeV v
+
+
+limitT :: [TypeV v] -> TypeV v
+limitT ts = head $ map Left (lefts ts) ++ ts
 
 
 instance TypeableJ Type v where
-  typeOf = Right
+  typeOf = Left
 
 
 instance TypeableJ Constant v where
-  typeOf c = Right $ case c of
+  typeOf c = Left $ case c of
     C_int    _ -> T_int
     C_double _ -> T_double
     C_float  _ -> T_float
@@ -228,22 +235,38 @@ instance TypeableJ Constant v where
 
 
 instance TypeableJ (Variable v) v where
-  typeOf = Left
+  typeOf = Right
 
 
-instance TypeableJ v v => TypeableJ (Expression v) v where
+
+isCmp e = case e of
+   E_eq   _ _ -> True
+   E_ge   _ _ -> True
+   E_le   _ _ -> True
+   E_lt   _ _ -> True
+   E_ne   _ _ -> True
+   E_gt   _ _ -> True
+   E_cmp  _ _ -> True
+   E_cmpg _ _ -> True
+   E_cmpl _ _ -> True
+   _          -> False
+
+instance (TypeableJ v v) => TypeableJ (Expression v) v where
   typeOf (E_length v) = typeOf v
-  typeOf (E_cast t v) = Right t
-  typeOf (E_instanceOf v _) = Right T_boolean
-  typeOf (E_newArray t v) = Right $ T_array 1 t
-  typeOf (E_new ref) = Left $ VarRef ref
-  typeOf (E_newMultiArray t v _) = Right $ T_array undefined t
-  -- TODO: comparisons
-  -- default (bin ops)
-  typeOf e = typeOf $ head $ F.toList e
+  typeOf (E_cast t v) = Left t
+  typeOf (E_instanceOf v _) = Left T_boolean
+  typeOf (E_newArray t v) = Left $ T_array 1 t
+  typeOf (E_new ref) = Right $ VarRef ref
+  typeOf (E_newMultiArray t v _) = Left $ T_array undefined t
+
+  -- comparisons
+  typeOf e | isCmp e = Left T_boolean
+
+  -- default: binary operators
+  typeOf e = limitT $ map typeOf $ F.toList e
 
 
 instance TypeableJ Value Value where
   typeOf (VConst c) = typeOf c
-  typeOf (VLocal v) = Left v
+  typeOf (VLocal v) = Right v
   typeOf (VExpr  e) = typeOf e
