@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Jimple where
 
 import qualified Data.ByteString.Char8 as B

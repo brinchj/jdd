@@ -2,6 +2,7 @@
            , DeriveFoldable
            , MultiParamTypeClasses
            , FlexibleInstances
+           , OverloadedStrings
   #-}
 
 module Jimple.Types where
