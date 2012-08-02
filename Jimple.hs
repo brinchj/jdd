@@ -35,7 +35,7 @@ typeP = do
     'J' -> return T_long
     'S' -> return T_short
     'Z' -> return T_boolean
-    'L' -> T_object <$> anyChar `manyTill` char ';'
+    'L' -> T_object . B.pack <$> anyChar `manyTill` char ';'
     '[' -> do
       dims <- length <$> (option [] $ many1 $ char '[')
       T_array (dims + 1) <$> typeP
@@ -240,6 +240,11 @@ byteCodeP = do
 
       -- ARRAYLENGTH: get length of array ref
       0xbe -> void . push =<< VExpr . E_length <$> popI
+
+      -- CHECKCAST: cast an object to type
+      0xc0 -> do Just (CF.ClassRef (CF.Class path)) <- askCP2
+                 obj <- popI
+                 void $ push $ VExpr $! E_cast (T_object path) obj
 
       -- IFNULL: if value is null jump
       0xc6 -> do v <- popI

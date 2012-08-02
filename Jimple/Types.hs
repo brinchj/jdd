@@ -129,7 +129,7 @@ data MethodSignature = MethodSig
 
 data Type = T_byte | T_char  | T_int | T_boolean | T_short
           | T_long | T_float | T_double
-          | T_object String | T_addr | T_void
+          | T_object B.ByteString | T_addr | T_void
           | T_array Int Type
           | T_unknown
           deriving (Eq, Ord, Show)
