@@ -26,7 +26,7 @@ mapFix f v = fst $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
 
 mapDecrypt (Method a b ops d) = Method a b (map go ops) d
   where
-    go (l, S_invoke I_static sig [VConst (C_string x)] r)
+    go (l, S_assign r (VExpr (E_invoke I_static sig [VConst (C_string x)])))
       | methodClass  sig == CF.Class "dk/danid/plugins/Woddlecakes" &&
         methodName   sig == "int" &&
         methodParams sig == [T_object "java/lang/String"] =

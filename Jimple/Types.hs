@@ -32,7 +32,6 @@ data Stmt v = S_breakpoint
           | S_exitMonitor  v
           | S_goto Label
           | S_if (Expression v) Label   -- Only condition expressions are allowed
-          | S_invoke (InvokeType v) MethodSignature [v] (Variable v)
           | S_lookupSwitch Label [(Int, Label)]
           | S_nop
           | S_ret Local
@@ -109,6 +108,7 @@ data Expression v = E_eq v v -- Conditions
                   | E_newArray Type v
                   | E_new (Ref v)
                   | E_newMultiArray Type v [v] -- TODO: empty dims?
+                  | E_invoke (InvokeType v) MethodSignature [v]
                   deriving (Eq, Ord, Functor, F.Foldable)
 
 data InvokeType v = I_interface v
@@ -144,9 +144,6 @@ instance Show v => Show (Stmt v) where
 
   show (S_goto lbl)      = "goto " ++ show lbl
   show (S_if con lbl)    = "if (" ++ show con ++ ") " ++ show lbl
-
-  show (S_invoke t m ims v) = show v ++ " <- invoke " ++ show t ++ " " ++
-                              show m ++ " " ++ show ims
 
   show (S_lookupSwitch lbl ls) = "lswitch " ++ show lbl ++ " " ++ show ls
 
@@ -203,6 +200,9 @@ instance Show v => Show (Expression v) where
   show (E_newArray t i) = "new " ++ show t ++ "[" ++ show i ++ "]"
   show (E_new r) = "new " ++ show r
   show (E_newMultiArray t i is) = "new " ++ show t ++ "(" ++ show (i, is) ++ ")"
+  show (E_invoke t m ims) = concat ["invoke ", show t, " "
+                                   , show m, " ", show ims]
+
 
 
 

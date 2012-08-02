@@ -220,7 +220,8 @@ byteCodeP = do
                  params <- replicateM (length $ methodParams method) popI
                  objRef <- popI
                  v      <- getFree
-                 append $! S_invoke (I_virtual objRef) method params v
+                 append $! S_assign v $ VExpr $
+                           E_invoke (I_virtual objRef) method params
                  void $ push $! VLocal v
 
       -- INVOKESPECIAL: invoke instance method on object ref
@@ -228,14 +229,16 @@ byteCodeP = do
                  params <- replicateM (length $ methodParams method) popI
                  objRef <- popI
                  v      <- getFree
-                 append $! S_invoke (I_special objRef) method params v
+                 append $! S_assign v $ VExpr $
+                           E_invoke (I_special objRef) method params
                  void $ push $! VLocal v
 
       -- INVOKESTATIC: invoke a static method (no object ref)
       0xb8 -> do method <- methodP
                  params <- replicateM (length $ methodParams method) popI
                  v      <- getFree
-                 append $! S_invoke I_static method params v
+                 append $! S_assign v $ VExpr $
+                           E_invoke I_static method params
                  void $ push $! VLocal v
 
       -- NEW: new object ref
