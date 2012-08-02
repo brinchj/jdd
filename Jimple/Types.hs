@@ -14,10 +14,10 @@ data JimpleMethod v = Method
                       , methodIdentStmts :: [IdentStmt v]
                       , methodStmts      :: [(Maybe Label, Stmt v)]
                       , methodExcepts    :: [Except v] }
-                  deriving (Eq)
+                  deriving (Eq, Show)
 
 data IdentStmt v = IStmt Local (Ref v)
-               deriving (Eq, Ord, Functor, F.Foldable)
+               deriving (Eq, Ord, Show, Functor, F.Foldable)
 
 data LocalDecl = LocalDecl Type String
                deriving (Eq, Ord, Show)
