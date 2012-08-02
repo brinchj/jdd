@@ -10,11 +10,13 @@ import qualified Control.Monad.Writer as W
 
 import qualified Data.ByteString as B
 import qualified Data.Foldable as F
+import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Set as S
 
 import Data.Char
 import Data.Maybe
+import Data.Word
 
 import Jimple.Types
 
@@ -33,19 +35,15 @@ mapDecrypt (Method a b ops d) = Method a b (map go ops) d
     go s = s
 
 
-decrypt = B.pack . conv . go 42 . delay . conv . B.unpack
+decrypt = B.pack . snd . L.mapAccumL go 42 . delay
   where
-    delay s = zip s $ drop 4 s
+    delay s = B.zip s $ B.drop 4 s
 
-    conv :: (Integral a, Num b) => [a] -> [b]
-    conv = map fromIntegral
-
-    go :: Int -> [(Int, Int)] -> [Int]
-    go _ [] = []
-    go p ((k, k4):ks) | k4 >= 32 && k4 <= 128 = dec : go dec ks
-                      | otherwise             =  k4 : go   p ks
+    go prev (k, k4) | isPrint $ chr k4i = (dec,  fromIntegral dec)
+                    | otherwise         = (prev, k4)
       where
-        dec = ((p + k + k4) `mod` 95) + 32
+        (ki, k4i) = (fromIntegral k, fromIntegral k4)
+        dec       = ((prev + ki + k4i) `mod` 95) + 32
 
 
 pureValue (VConst _) = True
