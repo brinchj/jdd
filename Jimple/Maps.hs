@@ -19,6 +19,7 @@ import Data.Maybe
 import Data.Word
 
 import Jimple.Types
+import Jimple.Rewrite
 
 mapFix f v = fst $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
   where
@@ -110,3 +111,48 @@ mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
     tellLabel f (Label pos) (Label next) = do
       W.tell [Label $! pos + next]
       return (Just $ Label pos, f $ Label $ pos + next)
+
+
+
+
+mapRewrite rule (Method a b ops d) = Method a b (go ops) d
+  where
+    go ops = maybe ops go $ rewrite rule ops
+
+
+
+-- Eliminate cross goto:
+-- goto 2
+-- 1: ...
+-- goto 3:
+-- 2: ...
+-- goto 1
+-- 3:
+-- ==>
+-- 1: ...
+-- 2: ...
+-- 3:
+mapElimGoto = mapRewrite $ do
+  S_goto lbl2 <- gotoP
+  body1Top@(Just lbl1, _) <- label
+
+  body1 <- many jumpless
+
+  S_goto lbl3 <- gotoP
+  body2Top@(Just lbl2', _) <- label
+  guard $ lbl2 == lbl2'
+
+  body2 <- many jumpless
+
+  S_goto lbl1' <- gotoP
+  guard $ lbl1 == lbl1'
+
+  body3Top@(Just lbl3', _) <- label
+  guard $ lbl3 == lbl3'
+
+  -- compute line size of parsed statements
+  let size = 6 + length (body1 ++ body2)
+  -- rearrange blocks without gotos
+  let body = (body2Top:body2) ++ (body1Top:body1) ++ [body3Top]
+
+  return (size, body)
