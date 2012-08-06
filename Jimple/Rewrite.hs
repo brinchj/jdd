@@ -17,11 +17,14 @@ type Item   = (Maybe Label, Stmt Value)
 type Parser = Parsec [Item] ()
 
 
-satisfy f = tokenPrim showT nextPos testT
+satisfyWith f = tokenPrim showT nextPos testT
     where
       showT           = show
-      testT x         = if f x then Just x else Nothing
+      testT           = f
       nextPos pos _ _ = incSourceLine pos 1
+
+
+satisfy f = satisfyWith $ \x -> if f x then Just x else Nothing
 
 
 goto = satisfy f
