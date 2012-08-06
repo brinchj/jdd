@@ -17,12 +17,6 @@ type Item   = (Maybe Label, Stmt Value)
 type Parser = Parsec [Item] ()
 
 
--- satisfy :: (Item -> Bool) -> Parser Item
--- satisfy f = do
---   t <- anyToken
---   guard $ f t
---   return t
-
 satisfy f = tokenPrim showT nextPos testT
     where
       showT           = show
