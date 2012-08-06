@@ -39,6 +39,8 @@ data Stmt v = S_breakpoint
           | S_returnVoid
           | S_tableSwitch v Label [(Int, Label)]
           | S_throw v
+            -- Below are statements for transitioning from Jimple to Java
+          | S_ifElse (Expression v) [(Maybe Label, Stmt v)] [(Maybe Label, Stmt v)]
           deriving (Eq, Ord, Functor, F.Foldable)
 
 
@@ -144,6 +146,9 @@ instance Show v => Show (Stmt v) where
 
   show (S_goto lbl)      = "goto " ++ show lbl
   show (S_if con lbl)    = "if (" ++ show con ++ ") " ++ show lbl
+  show (S_ifElse c a b)  = concat $ ["if (", show c, ") "
+                                    , show a, " else "
+                                    , show b]
 
   show (S_lookupSwitch lbl ls) = "lswitch " ++ show lbl ++ " " ++ show ls
 

@@ -7,8 +7,11 @@ module Jimple.Rewrite
        ( Parser
        , Item
        , satisfy
+       , anyStmt
+
        , goto
        , gotoP
+       , if_
        , label
        , labelP
        , jumpless
@@ -39,12 +42,16 @@ satisfyWith f = tokenPrim showT nextPos testT
 
 satisfy f = satisfyWith $ \x -> if f x then Just x else Nothing
 
+anyStmt = satisfy $ const True
 
-goto = satisfy f
-  where
-    f (Nothing, S_goto _) = True
-    f                   _ = False
-gotoP = snd <$> goto
+
+goto (Nothing, S_goto _) = True
+goto                   _ = False
+gotoP = snd <$> satisfy goto
+
+
+if_ (_, S_if _ _) = True
+if_             _ = False
 
 
 label = satisfy f

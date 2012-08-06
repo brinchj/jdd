@@ -156,3 +156,26 @@ mapElimGoto = mapRewrite $ do
   let body = (body2Top:body2) ++ (body1Top:body1) ++ [body3Top]
 
   return (size, body)
+
+
+mapGotoIf = mapRewrite $ do
+  (ifLbl, S_if cond lbl1) <- satisfy if_
+  body1 <- many jumpless
+  next <- anyStmt
+  let sizeIf = 2 + length body1
+  case next of
+    (Just lbl1', _) | lbl1 == lbl1' ->
+      -- if with no else
+      return (sizeIf, [(ifLbl, S_ifElse cond [] body1)])
+    (_, S_goto lbl2) -> do
+      -- if with else part: if cond 1 ... goto 2, 1: ... 2:
+      body2Top@(Just lbl1', _) <- anyStmt
+      guard $ lbl1 == lbl1'
+      body2 <- many jumpless
+      -- parse end of if
+      (Just lbl2', _) <- anyStmt
+      guard $ lbl2 == lbl2'
+      -- all ok!
+      let sizeElse = sizeIf + 1 + length body2
+      return (sizeElse, [(ifLbl, S_ifElse cond body2 body1)])
+    _ -> fail "mapGotoIf: no match"
