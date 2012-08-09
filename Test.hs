@@ -5,6 +5,7 @@ module Test where
 import Data.Foldable hiding (mapM_)
 
 import Jimple
+import Jimple.Typing
 import Jimple.Types
 import Jimple.Maps
 
@@ -21,13 +22,10 @@ list path =
 
 run path method = do
   cf <- CF.parseClassFile <$> B.readFile path
-  -- print cf
-  let m = CF.classMethods cf Map.! method
-  let code = CF.blockAttrs m Map.! "Code"
-  print m
-  let (err, meth) = parseJimple cf code
+  print cf
+  let (err, meth) = parseJimple cf method
       mapSimple = mapDecrypt . mapCleanup . mapInline
-      mapsF = mapFix mapSimple . mapCorrectLabels
+      mapsF = mapGotoIf . mapElimGoto . mapFix mapSimple . mapCorrectLabels
       meth'@(Method a b c d) = mapsF meth
   mapM_ (print) c
   maybe (return ()) print err
