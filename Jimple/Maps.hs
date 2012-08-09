@@ -122,16 +122,16 @@ mapRewrite rule (Method a b ops d) = Method a b (go ops) d
 
 
 -- Eliminate cross goto:
--- goto 2
--- 1: ...
--- goto 3:
--- 2: ...
--- goto 1
--- 3:
+-- > goto 2
+-- > 1: ...
+-- > goto 3:
+-- > 2: ...
+-- > goto 1
+-- > 3:
 -- ==>
--- 1: ...
--- 2: ...
--- 3:
+-- > 1: ...
+-- > 2: ...
+-- > 3:
 mapElimGoto = mapRewrite $ do
   S_goto lbl2 <- gotoP
   body1Top@(Just lbl1, _) <- label
@@ -147,17 +147,26 @@ mapElimGoto = mapRewrite $ do
   S_goto lbl1' <- gotoP
   guard $ lbl1 == lbl1'
 
+  -- check ending (not counted)
   body3Top@(Just lbl3', _) <- label
   guard $ lbl3 == lbl3'
 
   -- compute line size of parsed statements
-  let size = 6 + length (body1 ++ body2)
+  let size = 5 + length (body1 ++ body2)
   -- rearrange blocks without gotos
-  let body = (body2Top:body2) ++ (body1Top:body1) ++ [body3Top]
+  let body = (body2Top:body2) ++ (body1Top:body1)
 
   return (size, body)
 
 
+-- Try to clean up if-statements:
+-- > ifLbl: if cond lbl1
+-- > ... body1
+-- { > lbl1: } ==> if cond [] body1
+-- { > goto lbl2
+--   > lbl1:
+--   > ... body2
+--   > lbl2: } ==> if cond body2 body1
 mapGotoIf = mapRewrite $ do
   (ifLbl, S_if cond lbl1) <- satisfy if_
   body1 <- many jumpless
@@ -172,7 +181,7 @@ mapGotoIf = mapRewrite $ do
       body2Top@(Just lbl1', _) <- anyStmt
       guard $ lbl1 == lbl1'
       body2 <- many jumpless
-      -- parse end of if
+      -- parse end of if (not counted)
       (Just lbl2', _) <- anyStmt
       guard $ lbl2 == lbl2'
       -- all ok!
