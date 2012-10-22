@@ -237,8 +237,7 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
           let cnd = case stmtEnd of
                 S_goto _    -> VConst $ C_boolean True
                 S_if cnd' _ -> VExpr cnd'
-          -- error $ show (labels, lblEnd)
-          -- error $ show (body', cnd, labels)
+          -- Construct doWhile
           return (j - i + 1, [(Nothing, S_doWhile name body' cnd)])
         _ -> fail "mapWhile: No backreference here"
 
