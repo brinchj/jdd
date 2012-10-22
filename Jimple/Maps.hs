@@ -21,10 +21,14 @@ import Data.Word
 import Jimple.Types
 import Jimple.Rewrite
 
+
+-- Apply map until a fix-point is reached
 mapFix f v = fst $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
   where
     l = iterate f v
 
+
+-- Replace calls to Woddlecakes.int with decrypted string-constants
 mapDecrypt (Method a b ops d) = Method a b (map go ops) d
   where
     go (l, S_assign r (VExpr (E_invoke I_static sig [VConst (C_string x)])))
@@ -36,6 +40,7 @@ mapDecrypt (Method a b ops d) = Method a b (map go ops) d
     go s = s
 
 
+-- Decrypt a Woddlecakes-encrypted string
 decrypt = B.pack . snd . L.mapAccumL go 42 . delay
   where
     delay s = B.zip s $ B.drop 4 s
@@ -47,11 +52,13 @@ decrypt = B.pack . snd . L.mapAccumL go 42 . delay
         dec       = ((prev + ki + k4i) `mod` 95) + 32
 
 
+-- Identify pure values (no side-effects, used for inlining and cleaning)
 pureValue (VConst _) = True
 pureValue (VLocal (VarLocal _)) = True
 pureValue _ = False
 
 
+-- Clean up dead code by removing pure values that aren't used
 mapCleanup (Method a b ops d) = Method a b (go ops) d
   where
     go s = reverse $ catMaybes $ ST.evalState (mapM go' $ reverse s) S.empty
@@ -74,6 +81,7 @@ mapCleanup (Method a b ops d) = Method a b (go ops) d
         f s _ = s
 
 
+-- Perform value-inlining of pure values
 mapInline (Method a b ops d) = Method a b (go ops) d
   where
     go s = ST.evalState (mapM go' s) M.empty
@@ -92,6 +100,7 @@ mapInline (Method a b ops d) = Method a b (go ops) d
     update _                            = return ()
 
 
+-- Rewrite labels from relative to absolute, while removing unsed ones.
 mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
   where
     go s = map f s'
@@ -113,8 +122,7 @@ mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
       return (Just $ Label pos, f $ Label $ pos + next)
 
 
-
-
+-- Rewrite Jimple code according to rule (only first match is replaced)
 mapRewrite rule (Method a b ops d) = Method a b (go ops) d
   where
     go ops = maybe ops go $ rewrite rule ops
@@ -188,3 +196,19 @@ mapGotoIf = mapRewrite $ do
       let sizeElse = sizeIf + 1 + length body2
       return (sizeElse, [(ifLbl, S_ifElse cond body2 body1)])
     _ -> fail "mapGotoIf: no match"
+
+
+
+-- All labels with backwards jumps are loops
+-- while:
+-- > whileLbl: if cond lblOut
+-- > ... body1
+-- > goto whileLbl
+-- > lblOut
+--
+-- do-while:
+-- > whileLbl:
+-- > ... body1
+-- > if cond whileLbl
+--
+-- body1 may contain other loops/ifs, break and continue
