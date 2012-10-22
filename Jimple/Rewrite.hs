@@ -12,9 +12,14 @@ module Jimple.Rewrite
        , goto
        , gotoP
        , if_
+
        , label
        , labelP
+
        , jumpless
+       , jumpLabel
+       , jumpP
+
        , rewrite
        , many )
        where
@@ -70,11 +75,30 @@ jumpless = satisfy f
     f _             = False
 
 
+jumpLabel (S_goto      lbl) = Just lbl
+jumpLabel (S_if   cond lbl) = Just lbl
+jumpLabel _ = Nothing
+
+
+jumpP = satisfy $ maybe False (const True) . jumpLabel . snd
+
+
 rewrite :: Parser (Int, [Item]) -> [Item] -> Maybe [Item]
 rewrite p xs = go xs
   where
     go [] = Nothing
     go xs = case runP p () "" xs of
-      Left _            -> (head xs:) `fmap` go (tail xs)
+      Left _ ->
+        case xs of
+          ((lbl, S_ifElse cnd left right):rest) | isJust $ go left ->
+            Just $ (lbl, S_ifElse cnd (fromJust $ go left) right) : rest
+
+          ((lbl, S_ifElse cnd left right):rest) | isJust $ go right ->
+            Just $ (lbl, S_ifElse cnd left (fromJust $ go right)) : rest
+
+          ((lbl, S_doWhile name body cnd):rest) | isJust $ go body->
+            Just $ (lbl, S_doWhile name (fromJust $ go body) cnd) : rest
+
+          _ -> (head xs:) `fmap` go (tail xs)
       Right (size, xs') -> Just $ xs' ++ drop size xs
 

@@ -9,10 +9,14 @@ import qualified Data.ByteString as B
 import qualified Data.Foldable as F
 import qualified Parser as CF
 
+
+type LabelStmt v = (Maybe Label, Stmt v)
+
+
 data JimpleMethod v = Method
                       { methodLocalDecls :: [LocalDecl]
                       , methodIdentStmts :: [IdentStmt v]
-                      , methodStmts      :: [(Maybe Label, Stmt v)]
+                      , methodStmts      :: [LabelStmt v]
                       , methodExcepts    :: [Except v] }
                   deriving (Eq, Show)
 
@@ -24,7 +28,6 @@ data LocalDecl = LocalDecl Type Local
 
 data Except v = Except (Ref v) Label Label Label
             deriving (Eq, Ord, Show, Functor, F.Foldable)
-
 
 data Stmt v = S_breakpoint
           | S_assign (Variable v) v
@@ -40,7 +43,11 @@ data Stmt v = S_breakpoint
           | S_tableSwitch v Label [(Int, Label)]
           | S_throw v
             -- Below are statements for transitioning from Jimple to Java
-          | S_ifElse (Expression v) [(Maybe Label, Stmt v)] [(Maybe Label, Stmt v)]
+          | S_ifElse (Expression v) [LabelStmt v] [LabelStmt v]
+            -- We used labeled continue/break to tie the action to the loop
+          | S_doWhile  String [LabelStmt v] Value
+          | S_break    String
+          | S_continue String
           deriving (Eq, Ord, Functor, F.Foldable)
 
 
@@ -65,6 +72,7 @@ data Constant = C_double Double
               | C_long   Integer
               | C_string B.ByteString
               | C_null
+              | C_boolean Bool
               deriving (Eq, Ord, Show)
 
 data Variable v = VarRef (Ref v)
@@ -149,6 +157,12 @@ instance Show v => Show (Stmt v) where
   show (S_ifElse c a b)  = concat $ ["if (", show c, ") "
                                     , show a, " else "
                                     , show b]
+
+  show (S_continue name) = "continue " ++ name
+  show (S_break    name) = "break "    ++ name
+
+  show (S_doWhile name body cond) = concat $ [name, ": do ", show body
+                                             , " while (", show cond, ")"]
 
   show (S_lookupSwitch lbl ls) = "lswitch " ++ show lbl ++ " " ++ show ls
 

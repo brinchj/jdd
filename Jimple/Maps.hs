@@ -122,7 +122,7 @@ mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
       return (Just $ Label pos, f $ Label $ pos + next)
 
 
--- Rewrite Jimple code according to rule (only first match is replaced)
+-- Rewrite Jimple code according to rule
 mapRewrite rule (Method a b ops d) = Method a b (go ops) d
   where
     go ops = maybe ops go $ rewrite rule ops
@@ -179,7 +179,7 @@ mapGotoIf = mapRewrite $ do
   (ifLbl, S_if cond lbl1) <- satisfy if_
   body1 <- many jumpless
   next <- anyStmt
-  let sizeIf = 2 + length body1
+  let sizeIf = 1 + length body1
   case next of
     (Just lbl1', _) | lbl1 == lbl1' ->
       -- if with no else
@@ -193,7 +193,7 @@ mapGotoIf = mapRewrite $ do
       (Just lbl2', _) <- anyStmt
       guard $ lbl2 == lbl2'
       -- all ok!
-      let sizeElse = sizeIf + 1 + length body2
+      let sizeElse = sizeIf + 2 + length body2
       return (sizeElse, [(ifLbl, S_ifElse cond body2 body1)])
     _ -> fail "mapGotoIf: no match"
 
@@ -212,3 +212,50 @@ mapGotoIf = mapRewrite $ do
 -- > if cond whileLbl
 --
 -- body1 may contain other loops/ifs, break and continue
+mapWhile  (Method a b ops d) = Method a b (go ops) d
+  where
+    go ops = maybe ops id $ rewrite rule ops
+
+    rule = do
+      -- error $ show backrefs
+      (Just lblStart, stmtStart) <- anyStmt
+      let name = show lblStart
+      case M.lookup lblStart backrefs of
+        Just (i, (j, stmt'):rs) | i < j -> do
+          -- Extract loop body and final loop-jump
+          body <- replicateM (j - i - 1) anyStmt
+          (lblEnd, stmtEnd)  <- jumpP
+          -- Sanity check
+          unless (jumpLabel stmtEnd == Just lblStart) $
+            fail "mapWhile: Mismatch between labels"
+          (lblNext, stmtNext) <- anyStmt
+          -- Setup break/continue statements
+          let labels = maybe id (flip M.insert $ S_break name) lblNext $
+                       M.fromList [(lblStart, S_continue name :: Stmt Value)]
+          -- Rewrite labels inside body
+          let body' = replaceLabels labels `map` body
+          let cnd = case stmtEnd of
+                S_goto _    -> VConst $ C_boolean True
+                S_if cnd' _ -> VExpr cnd'
+          -- error $ show (labels, lblEnd)
+          -- error $ show (body', cnd, labels)
+          return (j - i + 1, [(Nothing, S_doWhile name body' cnd)])
+        _ -> fail "mapWhile: No backreference here"
+
+    addRef refs line key = M.adjust (\(i, lst) -> (i, line:lst)) key refs
+
+    backrefs = L.foldl' (\refs (i, (mlbl, cmd)) ->
+                          (maybe id (flip M.insert (i, []))) mlbl $
+                          maybe refs (addRef refs (i, cmd)) $ jumpLabel cmd
+                        ) M.empty $ zip [0..] ops
+
+    replaceLabels labels (mlbl, stmt) = (mlbl, stmt')
+      where
+        go    = map (replaceLabels labels)
+        getL  = flip M.lookup labels
+        stmt' = case stmt of
+          (S_ifElse cnd left right) -> S_ifElse cnd (go left) (go right)
+          (S_goto   lbl) -> fromMaybe stmt $ getL lbl
+          (S_if cnd lbl) -> maybe stmt (\s -> S_ifElse cnd [(Nothing, s)] []) $
+                            getL lbl
+          _            -> stmt :: Stmt Value
