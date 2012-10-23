@@ -158,6 +158,27 @@ byteCodeP = do
       -- DUP: a -> a, a
       0x59 -> mapM_ pushL =<< replicate 2 <$> pop
 
+      -- DUP_x1: b, a -> a, b, a
+      0x5a -> do (a, b) <- liftM2 (,) pop pop
+                 mapM_ pushL [a, b, a]
+
+      -- TODO: Alternative forms
+      -- DUP_x2: c, b, a -> a, c, b, a
+      0x5b -> do (a, b, c) <- liftM3 (,,) pop pop pop
+                 mapM_ pushL [a, c, b, a]
+
+      -- DUP2: b, a -> b, a, b, a
+      0x5c -> do (a, b) <- liftM2 (,) pop pop
+                 mapM_ pushL [b, a, b, a]
+
+      -- DUP2_x1: c, b, a -> b, a, c, b, a
+      0x5d -> do (a, b, c) <- liftM3 (,,) pop pop pop
+                 mapM_ pushL [b, a, c, b, a]
+
+      -- DUP2_x2: d, c, b, a -> b, a, d, c, b, a
+      0x5e -> do (a, b, c, d) <- liftM4 (,,,) pop pop pop pop
+                 mapM_ pushL [b, a, d, c, b, a]
+
       -- SWAP: a, b -> b, a
       0x5f -> mapM_ pushL =<< replicateM 2 pop
 
