@@ -44,7 +44,7 @@ typeP = do
     'Z' -> return T_boolean
     'L' -> T_object . B.pack <$> anyChar `manyTill` char ';'
     '[' -> do
-      dims <- length <$> option [] $ many1 $ char '['
+      dims <- length <$> option [] (many1 $ char '[')
       T_array (dims + 1) <$> typeP
     _   -> fail $ "Unknown type tag: " ++ show tag
 
