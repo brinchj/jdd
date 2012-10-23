@@ -25,7 +25,7 @@ run path method = do
   print cf
   let (err, meth) = parseJimple cf method
       mapSimple = mapDecrypt . mapCleanup . mapInline
-      mapsF = mapGotoIf . mapElimGoto . mapFix mapSimple . mapCorrectLabels
+      mapsF = mapFix (mapWhile . mapGotoIf . mapElimGoto . mapSimple) . mapCorrectLabels
       meth'@(Method a b c d) = mapsF meth
   mapM_ (print) c
   maybe (return ()) print err
