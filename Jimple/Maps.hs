@@ -5,6 +5,8 @@ module Jimple.Maps where
 import qualified Parser as CF
 
 import Control.Monad
+import Control.Arrow (second)
+
 import qualified Control.Monad.State as ST
 import qualified Control.Monad.Writer as W
 
@@ -214,7 +216,7 @@ mapGotoIf = mapRewrite $ do
 -- body1 may contain other loops/ifs, break and continue
 mapWhile  (Method a b ops d) = Method a b (go ops) d
   where
-    go ops = maybe ops id $ rewrite rule ops
+    go ops = fromMaybe ops $ rewrite rule ops
 
     rule = do
       -- error $ show backrefs
@@ -230,7 +232,7 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
             fail "mapWhile: Mismatch between labels"
           (lblNext, stmtNext) <- anyStmt
           -- Setup break/continue statements
-          let labels = maybe id (flip M.insert $ S_break name) lblNext $
+          let labels = maybe id (`M.insert` S_break name) lblNext $
                        M.fromList [(lblStart, S_continue name :: Stmt Value)]
           -- Rewrite labels inside body
           let body' = replaceLabels labels `map` body
@@ -241,10 +243,10 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
           return (j - i + 1, [(Nothing, S_doWhile name body' cnd)])
         _ -> fail "mapWhile: No backreference here"
 
-    addRef refs line key = M.adjust (\(i, lst) -> (i, line:lst)) key refs
+    addRef refs line key = M.adjust (second (line:)) key refs
 
     backrefs = L.foldl' (\refs (i, (mlbl, cmd)) ->
-                          (maybe id (flip M.insert (i, []))) mlbl $
+                          maybe id (`M.insert` (i, [])) mlbl $
                           maybe refs (addRef refs (i, cmd)) $ jumpLabel cmd
                         ) M.empty $ zip [0..] ops
 

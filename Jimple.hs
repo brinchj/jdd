@@ -44,7 +44,7 @@ typeP = do
     'Z' -> return T_boolean
     'L' -> T_object . B.pack <$> anyChar `manyTill` char ';'
     '[' -> do
-      dims <- length <$> (option [] $ many1 $ char '[')
+      dims <- length <$> option [] $ many1 $ char '['
       T_array (dims + 1) <$> typeP
     _   -> fail $ "Unknown type tag: " ++ show tag
 
@@ -407,13 +407,13 @@ parseJimple cf method =
     goM = do
       let MethodSig _ _ vs r = methodSig' blockDesc $
                                MethodSig (CF.Class "") blockDesc
-      modifyFst $ \m -> m { methodLocalDecls = map decl $ zip vs ns }
+      modifyFst $ \m -> m { methodLocalDecls = zipWith decl vs ns }
       unless isStatic $
         modifyFst $ \m -> m { methodIdentStmts = [IStmt (Local "l0") R_this]}
 
       runPT byteCodeP () "" code
 
-    decl (t, n) = LocalDecl t $ Local $ 'l' : show n
+    decl t n = LocalDecl t $ Local $ 'l' : show n
 
     ns = if isStatic then [0..] else [1..]
     isStatic = blockFlags .&. 8 == 1
