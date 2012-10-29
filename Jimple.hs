@@ -220,7 +220,9 @@ byteCodeP = do
         v <- popI
         -- skip padding
         pos <- fromIntegral <$> thisPos <$> ST.gets snd
-        replicateM_ (4 - pos) u1
+        let off = pos `mod` 4
+        when (off > 0) $
+          replicateM_ (4 - off) u1
         -- address for default code
         defaultByte <- Label <$> s4
         -- match-pairs and their addresses
