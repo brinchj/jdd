@@ -214,6 +214,21 @@ byteCodeP = do
       -- GOTO: unconditional jump
       0xa7 -> append =<< S_goto <$> label2
 
+      -- LOOKUPSWITCH: switch statement
+      0xab -> do
+        -- get value for switching
+        v <- popI
+        -- skip padding
+        pos <- fromIntegral <$> thisPos <$> ST.gets snd
+        replicateM_ (4 - pos) u1
+        -- address for default code
+        defaultByte <- Label <$> s4
+        -- match-pairs and their addresses
+        npairs <- fromIntegral <$> s4
+        pairs <- replicateM npairs $ liftM2 (,) s4 (Label <$> s4)
+        -- build lookupSwitch
+        append $! S_lookupSwitch v defaultByte pairs
+
       -- IRETURN: return int value from stack
       0xac -> append =<< S_return . VLocal <$> pop
 
@@ -342,6 +357,9 @@ byteCodeP = do
 
     -- read 2-byte signed int
     s2 = CF.makeSigned 16 <$> u2
+
+    -- read 4-byte signed int
+    s4 = CF.makeSigned 32 <$> u4
 
     -- read 2-byte label (signed short)
     label2 = Label <$> s2

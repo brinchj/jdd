@@ -30,25 +30,25 @@ data Except v = Except (Ref v) Label Label Label
             deriving (Eq, Ord, Show, Functor, F.Foldable)
 
 data Stmt v = S_breakpoint
-          | S_assign (Variable v) v
-          | S_enterMonitor v
-          | S_exitMonitor  v
-          | S_goto Label
-          | S_if (Expression v) Label   -- Only condition expressions are allowed
-          | S_lookupSwitch Label [(Int, Label)]
-          | S_nop
-          | S_ret Local
-          | S_return v
-          | S_returnVoid
-          | S_tableSwitch v Label [(Int, Label)]
-          | S_throw v
+            | S_assign (Variable v) v
+            | S_enterMonitor v
+            | S_exitMonitor  v
+            | S_goto Label
+            | S_if (Expression v) Label   -- Only condition expressions are allowed
+            | S_lookupSwitch v Label [(Integer, Label)]
+            | S_nop
+            | S_ret Local
+            | S_return v
+            | S_returnVoid
+            | S_tableSwitch v Label [(Integer, Label)]
+            | S_throw v
             -- Below are statements for transitioning from Jimple to Java
-          | S_ifElse (Expression v) [LabelStmt v] [LabelStmt v]
+            | S_ifElse (Expression v) [LabelStmt v] [LabelStmt v]
             -- We used labeled continue/break to tie the action to the loop
-          | S_doWhile  String [LabelStmt v] Value
-          | S_break    String
-          | S_continue String
-          deriving (Eq, Ord, Functor, F.Foldable)
+            | S_doWhile  String [LabelStmt v] Value
+            | S_break    String
+            | S_continue String
+            deriving (Eq, Ord, Functor, F.Foldable)
 
 
 data Value = VConst Constant
@@ -164,7 +164,7 @@ instance Show v => Show (Stmt v) where
   show (S_doWhile name body cond) = concat $ [name, ": do ", show body
                                              , " while (", show cond, ")"]
 
-  show (S_lookupSwitch lbl ls) = "lswitch " ++ show lbl ++ " " ++ show ls
+  show (S_lookupSwitch v lbl ls) = "lswitch " ++ show v ++ " " ++ show lbl ++ " " ++ show ls
 
   show (S_nop)           = "nop"
 
