@@ -23,8 +23,6 @@ import Data.Word
 import Jimple.Types
 import Jimple.Rewrite
 
-import Debug.Trace
-
 
 -- Apply map until a fix-point is reached
 mapFix f v = fst $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
@@ -216,13 +214,11 @@ mapGotoIf = mapRewrite $ do
 -- > if cond whileLbl
 --
 -- body1 may contain other loops/ifs, break and continue
-debug a = traceShow a a
 mapWhile  (Method a b ops d) = Method a b (go ops) d
   where
     go ops = fromMaybe ops $ rewrite rule ops
 
     rule = do
-      -- error $ show backrefs
       (Just lblStart, stmtStart) <- anyStmt
       let name = show lblStart
       case M.lookup lblStart backrefs of
