@@ -23,6 +23,8 @@ import Data.Word
 import Jimple.Types
 import Jimple.Rewrite
 
+import Debug.Trace
+
 
 -- Apply map until a fix-point is reached
 mapFix f v = fst $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
@@ -214,6 +216,7 @@ mapGotoIf = mapRewrite $ do
 -- > if cond whileLbl
 --
 -- body1 may contain other loops/ifs, break and continue
+debug a = traceShow a a
 mapWhile  (Method a b ops d) = Method a b (go ops) d
   where
     go ops = fromMaybe ops $ rewrite rule ops
@@ -235,12 +238,12 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
           let labels = maybe id (`M.insert` S_break name) lblNext $
                        M.fromList [(lblStart, S_continue name :: Stmt Value)]
           -- Rewrite labels inside body
-          let body' = replaceLabels labels `map` body
+          let body' = (Nothing, stmtStart) : replaceLabels labels `map` body
           let cnd = case stmtEnd of
                 S_goto _    -> VConst $ C_boolean True
                 S_if cnd' _ -> VExpr cnd'
           -- Construct doWhile
-          return (j - i + 1, [(Nothing, S_doWhile name body' cnd)])
+          return (j - i + 1, [(Just lblStart, S_doWhile name body' cnd)])
         _ -> fail "mapWhile: No backreference here"
 
     addRef refs line key = M.adjust (second (line:)) key refs
