@@ -65,7 +65,7 @@ mapCleanup (Method a b ops d) = Method a b (go ops) d
   where
     go s = reverse $ catMaybes $ ST.evalState (mapM go' $ reverse s) S.empty
 
-    go' (l@(label, s@(S_assign (VarLocal v) e))) = do
+    go' (l@(label, s@(S_assign (VarLocal v@(Local ('s':_))) e))) = do
       alive <- ST.gets $ S.member v
       when alive $ addAlive s
       let canRemove = not alive && pureValue e
