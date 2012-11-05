@@ -138,7 +138,10 @@ byteCodeP = do
       _ | code `elem` [0x2e..0x35] -> arrayGet $ types !! (code - 0x2e)
 
       -- ?STORE: store value in local variable #, int to object ref
-      _ | code `elem` [0x36..0x3a] -> void . pushL =<< getLocal <$> u1
+      _ | code `elem` [0x36..0x3a] -> do
+        var <- u1
+        append =<< S_assign (getLocal var) . VLocal <$> pop
+
 
       -- ?STORE_#: store int value from stack in local variable 0 to 3
       _ | code `elem` [0x3b..0x4e] ->
@@ -392,8 +395,9 @@ byteCodeP = do
 
     -- array retrieval
     arraySet tpe = do
+      var <- VLocal <$> pop
       ref <- VarRef <$> apply2 R_array
-      void . append =<< S_assign ref . VLocal <$> pop
+      append $ S_assign ref var
 
 
     -- allocate new variable for result of method call unless it's void
