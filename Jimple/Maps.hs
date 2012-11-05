@@ -74,6 +74,9 @@ mapCleanup (Method a b ops d) = Method a b (go ops) d
         Just _  | canRemove -> return $ Just (label, S_nop)
         _ -> return $ Just l
 
+    -- remove dead lines
+    go' (Nothing, S_nop) = return Nothing
+
     go' (l@(_, st)) = addAlive st >> return (Just l)
 
     addAlive = ST.modify . S.union . F.foldl f S.empty
