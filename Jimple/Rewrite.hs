@@ -96,7 +96,7 @@ rewrite p xs = go xs
           ((lbl, S_ifElse cnd left right):rest) | isJust $ go right ->
             Just $ (lbl, S_ifElse cnd left (fromJust $ go right)) : rest
 
-          ((lbl, S_doWhile name body cnd):rest) | isJust $ go body->
+          ((lbl, S_doWhile name body cnd):rest) | isJust $ go body ->
             Just $ (lbl, S_doWhile name (fromJust $ go body) cnd) : rest
 
           _ -> (head xs:) `fmap` go (tail xs)
