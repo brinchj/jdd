@@ -107,7 +107,7 @@ mapInline (Method a b ops d) = Method a b (go ops) d
     update _                            = return ()
 
 
--- Rewrite labels from relative to absolute, while removing unsed ones.
+-- Rewrite labels from relative to absolute, while removing unused ones.
 mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
   where
     go s = map f s'
