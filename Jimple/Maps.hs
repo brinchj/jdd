@@ -82,8 +82,9 @@ mapCleanup (Method a b ops d) = Method a b (go ops) d
     addAlive = ST.modify . S.union . F.foldl f S.empty
       where
         f s (VLocal (VarLocal v)) = S.insert v s
+        f s (VLocal (VarRef   r)) = F.foldl f s r
         f s (VExpr  e) = F.foldl f s e
-        f s _ = s
+        f s (VConst _) = s
 
 
 -- Perform value-inlining of pure values
