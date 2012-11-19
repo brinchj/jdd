@@ -278,5 +278,9 @@ parseClassFile bs = ST.execState (runPT classFile () "" bs) emptyST
                         , classInterfaces = []
                         , classMethods    = M.empty
                         , classFields     = M.empty
+                        , classVersion    = undefined  -- To be defined later
+                        , classFlags      = undefined
+                        , classThis       = undefined
+                        , classSuper      = undefined
                         }
 
