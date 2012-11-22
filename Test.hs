@@ -22,7 +22,7 @@ list path =
 
 phase1 = mapCorrectLabels
 phase2 = mapFix $ mapCleanup . mapInline
-phase3 = mapFix $ mapWhile . mapGotoIf . mapElimGoto
+phase3 = mapFix $ mapSwitch . mapWhile . mapGotoIf . mapElimGoto
 
 run path method = do
   cf <- CF.parseClassFile <$> B.readFile path
