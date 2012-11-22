@@ -20,13 +20,16 @@ import qualified Data.ByteString as B
 list path =
   Map.keys . CF.classMethods . CF.parseClassFile <$> B.readFile path
 
+phase1 = mapCorrectLabels
+phase2 = mapFix $ mapCleanup . mapInline
+phase3 = mapFix $ mapWhile . mapGotoIf . mapElimGoto
+
 run path method = do
   cf <- CF.parseClassFile <$> B.readFile path
   print cf
   let (err, meth) = parseJimple cf method
-      mapSimple = mapFix $ mapDecrypt . mapCleanup . mapInline
-      mapsF = mapFix (mapWhile . mapGotoIf . mapElimGoto) . mapSimple . mapCorrectLabels
-      meth'@(Method a b c d) = mapsF meth
+      transform = phase3 . phase2 . phase1
+      meth'@(Method a b c d) = transform meth
   mapM_ (print) c
   maybe (return ()) print err
 
