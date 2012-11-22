@@ -1,11 +1,15 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings
+           , ScopedTypeVariables
+           , MultiWayIf
+ #-}
 
 module Jimple.Maps where
 
 import qualified Parser as CF
 
 import Control.Monad
-import Control.Arrow (second)
+import Control.Arrow (first, second)
+import Control.Applicative ((<$>))
 
 import qualified Control.Monad.State as ST
 import qualified Control.Monad.Writer as W
@@ -23,6 +27,8 @@ import Data.Word
 import Jimple.Types
 import Jimple.Rewrite
 
+import Text.Parsec     (getPosition)
+import Text.Parsec.Pos (sourceLine)
 
 -- Apply map until a fix-point is reached
 mapFix f v = fst $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
@@ -269,3 +275,32 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
           (S_if cnd lbl) -> maybe stmt (\s -> S_ifElse cnd [(Nothing, s)] []) $
                             getL lbl
           _            -> stmt :: Stmt Value
+
+
+-- Switch statements
+-- > lswitch v lblDef [(case0, lbl0), (case1, lbl1), (case2, lbl2)]
+-- > lbl0: body0
+-- > lbl1: body1
+-- > lbl2: body2
+-- > lblDef
+-- > lblBreak
+-- ==>
+-- > switch v [(case0, body0), (case1, body1), (case2, body2))]
+mapSwitch = mapRewrite $ do
+  start <- sourceLine <$> getPosition
+  (lblStart, S_lookupSwitch v lblDef cs0) <- switchP
+  let cs1 = map (first Just) cs0
+  cs2 <- mapM go $ zip cs1 $ tail cs1 ++ [(Nothing, lblDef)]
+  stop <- sourceLine <$> getPosition
+  return (stop - start, [(lblStart, S_switch v cs2)])
+  where
+    go ((n0, _), (n1, l1)) = do
+      body <- upTo l1
+      return (n0, body)
+
+    upTo lbl = do
+      body <- many labelLess
+      stmt@(Just lbl0, s) <- label
+      let body' = body ++ if s == S_nop then [] else [stmt]
+      if | lbl0 /= lbl -> (body' ++) <$> upTo lbl
+         | otherwise   -> return body'
