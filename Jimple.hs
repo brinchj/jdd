@@ -10,9 +10,12 @@ import Debug.Trace
 
 import Data.Bits
 import Data.Char
+import Data.Ord
+
 import Numeric
 
-import qualified Data.Map as M
+import qualified Data.Map  as M
+import qualified Data.List as L
 
 import Text.Parsec.ByteString
 import Text.Parsec.Char
@@ -232,7 +235,7 @@ byteCodeP = do
         npairs <- fromIntegral <$> s4
         pairs <- replicateM npairs $ liftM2 (,) s4 (Label <$> s4)
         -- build lookupSwitch
-        append $! S_lookupSwitch v defaultByte pairs
+        append $! S_lookupSwitch v defaultByte $ L.sortBy (comparing snd) pairs
 
       -- IRETURN: return int value from stack
       0xac -> append =<< S_return . VLocal <$> pop
