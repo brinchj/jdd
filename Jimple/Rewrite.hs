@@ -80,7 +80,7 @@ jumpLabel (S_if   cond lbl) = Just lbl
 jumpLabel _ = Nothing
 
 
-jumpP = satisfy $ maybe False (const True) . jumpLabel . snd
+jumpP = satisfy $ isJust . jumpLabel . snd
 
 
 rewrite :: Parser (Int, [Item]) -> [Item] -> Maybe [Item]
