@@ -14,6 +14,7 @@ module Jimple.Rewrite
        , if_
 
        , label
+       , labelLess
        , labelP
 
        , jumpless
@@ -62,10 +63,12 @@ if_ (_, S_if _ _) = True
 if_             _ = False
 
 
-label = satisfy f
-  where
-    f (Just lbl, _) = True
-    f             _ = False
+label     = satisfy hasLabel
+labelLess = satisfy $ not . hasLabel
+
+hasLabel (Just lbl, _) = True
+hasLabel _             = False
+
 labelP = fst <$> label
 
 
@@ -109,4 +112,3 @@ rewrite p xs = go xs
 
           _ -> (head xs:) `fmap` go (tail xs)
       Right (size, xs') -> Just $ xs' ++ drop size xs
-
