@@ -119,6 +119,12 @@ mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
 
     go' (Just pos, S_if c next) = tellLabel (S_if c) pos next
     go' (Just pos, S_goto next) = tellLabel S_goto   pos next
+    go' (Just pos, S_lookupSwitch v lbl cs) = do
+      let cs'  = map (second (+pos)) cs
+      let lbl' = pos + lbl
+      W.tell [lbl']
+      W.tell $ map snd cs'
+      return (Just pos, S_lookupSwitch v lbl' cs')
 
     -- TODO: S_lookupSwitch, S_tableSwitch
     go' s = return s
