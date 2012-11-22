@@ -125,7 +125,7 @@ mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
       W.tell $ lbl' : map snd cs'
       return (Just pos, S_lookupSwitch v lbl' cs')
 
-    -- TODO: S_lookupSwitch, S_tableSwitch
+    -- TODO: S_tableSwitch
     go' s = return s
 
 
