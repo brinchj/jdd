@@ -58,7 +58,16 @@ data Value = VConst Constant
 
 data Label = Label Integer
            deriving (Eq, Ord)
-instance Show Label where show (Label l) = show l
+
+instance Show     Label where show (Label l) = show l
+instance Num      Label where
+  fromInteger = Label
+  (+)         = labelOp (+)
+  (*)         = labelOp (*)
+  signum (Label n) = Label $ signum n
+  abs    (Label n) = Label $ abs n
+
+labelOp f (Label a) (Label b) = Label $ a `f` b
 
 
 data Local = Local String
