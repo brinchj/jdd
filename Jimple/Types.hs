@@ -121,12 +121,12 @@ data Expression v = E_eq v v -- Conditions
                   | E_div  v v
                   | E_rem  v v
 
-                  | E_length v
-                  | E_cast   Type v
-                  | E_instanceOf v (Ref v)
-                  | E_newArray Type v
-                  | E_new (Ref v)
+                  | E_length        v
+                  | E_instanceOf    v    (Ref v)
+                  | E_cast          Type v
+                  | E_newArray      Type v
                   | E_newMultiArray Type v [v] -- TODO: empty dims?
+                  | E_new           (Ref v)
                   | E_invoke (InvokeType v) MethodSignature [v]
                   deriving (Eq, Ord, Functor, F.Foldable)
 
