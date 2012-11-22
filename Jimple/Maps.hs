@@ -122,8 +122,7 @@ mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
     go' (Just pos, S_lookupSwitch v lbl cs) = do
       let cs'  = map (second (+pos)) cs
       let lbl' = pos + lbl
-      W.tell [lbl']
-      W.tell $ map snd cs'
+      W.tell $ lbl' : map snd cs'
       return (Just pos, S_lookupSwitch v lbl' cs')
 
     -- TODO: S_lookupSwitch, S_tableSwitch
