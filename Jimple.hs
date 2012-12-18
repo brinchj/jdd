@@ -194,6 +194,9 @@ byteCodeP = do
       -- ISUB: sub two ints
       0x64 -> void $ push =<< VExpr <$> apply2 E_sub
 
+      -- IMUL: multiply two ints
+      0x68 -> void $ push =<< VExpr <$> apply2 E_mul
+
       -- IREM: rem two ints
       0x70 -> void $ push =<< VExpr <$> apply2 E_rem
 
