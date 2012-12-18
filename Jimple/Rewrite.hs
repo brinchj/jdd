@@ -101,14 +101,21 @@ rewrite p xs = go xs
     go xs = case runP p () "" xs of
       Left _ ->
         case xs of
-          ((lbl, S_ifElse cnd left right):rest) | isJust $ go left ->
-            Just $ (lbl, S_ifElse cnd (fromJust $ go left) right) : rest
-
-          ((lbl, S_ifElse cnd left right):rest) | isJust $ go right ->
-            Just $ (lbl, S_ifElse cnd left (fromJust $ go right)) : rest
+          ((lbl, S_ifElse cnd left right):rest)
+            | Just [left, right] <- goAny [left, right] ->
+              Just $ (lbl, S_ifElse cnd left right) : rest
 
           ((lbl, S_doWhile name body cnd):rest) | isJust $ go body ->
             Just $ (lbl, S_doWhile name (fromJust $ go body) cnd) : rest
 
+          ((lbl, S_switch name v cs):rest)
+            | Just result <- goAny $ map snd cs ->
+              Just $ (lbl, S_switch name v $ zip (map fst cs) result) : rest
+
           _ -> (head xs:) `fmap` go (tail xs)
       Right (size, xs') -> Just $ xs' ++ drop size xs
+
+    goAny [] = Nothing
+    goAny (x:xs)
+      | Just result <- go x = Just $ result : xs
+      | otherwise           = (x:) <$> goAny xs
