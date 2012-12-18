@@ -275,7 +275,7 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
           let labels = maybe id (`M.insert` S_break name) lblNext $
                        M.fromList [(lblStart, S_continue name :: Stmt Value)]
           -- Rewrite labels inside body
-          let body' = (Nothing, stmtStart) : replaceLabels labels `map` body
+          let body' = (Nothing, stmtStart) : replaceLabels labels body
           let cnd = case stmtEnd of
                 S_goto _    -> VConst $ C_boolean True
                 S_if cnd' _ -> VExpr cnd'
@@ -290,16 +290,17 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
                           maybe refs (addRef refs (i, cmd)) $ jumpLabel cmd
                         ) M.empty $ zip [0..] ops
 
-    replaceLabels labels (mlbl, stmt) = (mlbl, stmt')
+
+    replaceLabels labels = mapS go
       where
-        go    = map (replaceLabels labels)
-        getL  = flip M.lookup labels
-        stmt' = case stmt of
-          (S_ifElse cnd left right) -> S_ifElse cnd (go left) (go right)
-          (S_goto   lbl) -> fromMaybe stmt $ getL lbl
-          (S_if cnd lbl) -> maybe stmt (\s -> S_ifElse cnd [(Nothing, s)] []) $
-                            getL lbl
-          _            -> stmt :: Stmt Value
+        getL            = flip M.lookup labels
+        go (mlbl, stmt) = (mlbl, stmt')
+          where
+            stmt' = case stmt of
+              S_goto   lbl -> fromMaybe stmt $ getL lbl
+              S_if cnd lbl -> maybe stmt (\s -> S_ifElse cnd [(Nothing, s)] []) $
+                              getL lbl
+              _            -> stmt
 
 
 -- Switch statements
