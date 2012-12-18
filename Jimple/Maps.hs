@@ -37,10 +37,11 @@ mapS f ls = map go ls
     go (mlbl, stmt) = f (mlbl, stmt')
       where
         stmt' = case stmt of
-          S_ifElse  cnd  l r -> S_ifElse  cnd  (map go l) (map go r)
-          S_doWhile name b c -> S_doWhile name (map go b) c
-          S_switch  v    cs  -> S_switch  v    [(c, map go s) | (c, s) <- cs]
-          _                  -> stmt
+          S_ifElse  cnd  l r  -> S_ifElse  cnd    (map go l) (map go r)
+          S_doWhile name b c  -> S_doWhile name   (map go b) c
+          S_switch  name v cs -> S_switch  name v [(c, map go s) | (c, s) <- cs]
+          _                   -> stmt
+
 
 -- Fold through statements recursively
 foldS f zero ls = F.foldl' go zero ls
@@ -49,10 +50,10 @@ foldS f zero ls = F.foldl' go zero ls
       where
         acc1 = f acc0 (mlbl, stmt)
         acc2 = case stmt of
-          S_ifElse  _ l r -> F.foldl' go (F.foldl' go acc1 l) r
-          S_doWhile _ b _ -> F.foldl' go acc1 b
-          S_switch  _ cs  -> F.foldl' go acc1 $ L.concat $ map snd cs
-          _               -> acc1
+          S_ifElse  _ l r  -> F.foldl' go (F.foldl' go acc1 l) r
+          S_doWhile _ b _  -> F.foldl' go acc1 b
+          S_switch  _ _ cs -> F.foldl' go acc1 $ L.concat $ map snd cs
+          _                -> acc1
 
 
 -- Apply map until a fix-point is reached

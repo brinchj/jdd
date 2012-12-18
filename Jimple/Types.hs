@@ -48,7 +48,7 @@ data Stmt v = S_breakpoint
             | S_doWhile  String [LabelStmt v] Value
             | S_break    String
             | S_continue String
-            | S_switch   v [(Maybe Integer, [LabelStmt v])]
+            | S_switch   String v [(Maybe Integer, [LabelStmt v])]
             deriving (Eq, Ord, Functor, F.Foldable)
 
 
@@ -185,7 +185,7 @@ instance Show v => Show (Stmt v) where
   show (S_tableSwitch i lbl ls) = "tswitch" ++ show i ++ " " ++ show lbl ++ " "
                                   ++ show ls
 
-  show (S_switch v cs) = concat $ ["switch (", show v, ") ", show cs]
+  show (S_switch name v cs) = concat $ [name, ": switch (", show v, ") ", show cs]
 
   show (S_throw i) = "throw " ++ show i
 
