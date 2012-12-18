@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings
            , ScopedTypeVariables
            , MultiWayIf
- #-}
+  #-}
 
 module Jimple.Maps where
 
@@ -42,6 +42,8 @@ mapS f ls = map go ls
           S_switch  name v cs -> S_switch  name v [(c, map go s) | (c, s) <- cs]
           _                   -> stmt
 
+-- Like mapS but returns values of f isntead of replacing inside the structure
+mapA f ls = map f $ foldS (flip (:)) [] ls
 
 -- Fold through statements recursively
 foldS f zero ls = F.foldl' go zero ls
