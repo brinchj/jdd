@@ -264,7 +264,8 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
 
     rule = do
       (Just lblStart, stmtStart) <- anyStmt
-      let name = show lblStart
+      let name = "while_" ++ show lblStart
+
       case M.lookup lblStart backrefs of
         Just (i, (j, stmt'):rs) | i < j -> do
           -- Extract loop body and final loop-jump
@@ -294,16 +295,16 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
                         ) M.empty $ zip [0..] ops
 
 
-    replaceLabels labels = mapS go
+replaceLabels labels = mapS go
+  where
+    getL            = flip M.lookup labels
+    go (mlbl, stmt) = (mlbl, stmt')
       where
-        getL            = flip M.lookup labels
-        go (mlbl, stmt) = (mlbl, stmt')
-          where
-            stmt' = case stmt of
-              S_goto   lbl -> fromMaybe stmt $ getL lbl
-              S_if cnd lbl -> maybe stmt (\s -> S_ifElse cnd [(Nothing, s)] []) $
-                              getL lbl
-              _            -> stmt
+        stmt' = case stmt of
+          S_goto   lbl -> fromMaybe stmt $ getL lbl
+          S_if cnd lbl -> maybe stmt (\s -> S_ifElse cnd [(Nothing, s)] []) $
+                          getL lbl
+          _            -> stmt
 
 
 -- Switch statements
@@ -317,11 +318,34 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
 -- > switch v [(case0, body0), (case1, body1), (case2, body2))]
 mapSwitch = mapRewrite $ do
   start <- sourceLine <$> getPosition
+  let name = "switch_" ++ show start
   (lblStart, S_lookupSwitch v lblDef cs0) <- switchP
-  let cs1 = map (first Just) cs0
-  cs2 <- mapM go $ zip cs1 $ tail cs1 ++ [(Nothing, lblDef)]
+
+  -- Group statements according to case
+  let cs1 = map (first Just) cs0 ++ [(Nothing, lblDef)]
+  cs2 <- mapM go $ zip cs1 $ tail cs1
+
+  -- Build default block if another block breaks past it
+  let ls0 = catMaybes   $ map (jumpLabel.snd) $
+            filter goto $ L.concat $ map (mapA id.snd) cs2
+
+  -- Find break-label if present
+  let lblBreak = listToMaybe $ L.sort $ filter (>= lblDef) ls0
+
+  -- Replace break-labels and collect default-case statements
+  cs3 <- case lblBreak of
+    Just lbl -> do
+      -- Collect default-case if present
+      defaultS <- if lbl > lblDef then upTo lbl else return []
+      -- Replace break-labels and build new statement lists
+      return $
+        map (second (replaceLabels $ M.fromList [(lbl, S_break name)])) $
+        cs2 ++ [(Nothing, defaultS)]
+    Nothing  -> return cs2
+
+  -- Compute total size and return rewritten statement
   stop <- sourceLine <$> getPosition
-  return (stop - start, [(lblStart, S_switch v cs2)])
+  return (stop - start, [(lblStart, S_switch name v cs3)])
   where
     go ((n0, _), (n1, l1)) = do
       body <- upTo l1
