@@ -328,5 +328,5 @@ mapSwitch = mapRewrite $ do
       body <- many labelLess
       stmt@(Just lbl0, s) <- label
       let body' = body ++ if s == S_nop then [] else [stmt]
-      if | lbl0 /= lbl -> (body' ++) <$> upTo lbl
+      if | lbl0 /= lbl -> ((body++).(stmt:)) <$> upTo lbl
          | otherwise   -> return body'
