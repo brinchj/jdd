@@ -108,7 +108,10 @@ stmtToJava (lbl, s) = case s of
   S_returnVoid -> line "return"
 
   S_doWhile nm body v -> Java $ [
-    JavaBlock (nm ++ ": do ") (inline body) (concat [" while (", value v, ")"])]
+    JavaBlock (nm ++ ": do ") (inline body) (concat [" while (", value v, ");"])]
+
+  S_break nm -> line $ "break " ++ nm
+  S_continue nm -> line $ "continue " ++ nm
 
   S_ifElse e left right -> Java $ [
     JavaBlock (concat ["if (", expr e, ") "]) (inline left) "",
