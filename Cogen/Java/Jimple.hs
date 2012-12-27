@@ -81,7 +81,10 @@ expr e = case e of
 
   E_invoke it (MethodSig cp nm pars res _) args ->
     let path1 = if it == I_static then path $ classPath cp else invoke it in
-    concat [path1, ".", str nm, "(", intercalate "," (map value args), ")"]
+    if nm == "<init>" then
+      concat [path1, "(", intercalate "," (map value args), ")"]
+    else
+      concat [path1, ".", str nm, "(", intercalate "," (map value args), ")"]
 
   _ -> error $ "expr: " ++ show e
 
