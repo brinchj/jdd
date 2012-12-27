@@ -81,11 +81,14 @@ instance (TypeableJ v v) => TypeableJ (Expression v) v where
   typeOf e = limitT $ map typeOf $ F.toList e
 
 
-instance Show v => TypeableJ (Ref v) v where
+instance TypeableJ (Ref Value) Value where
   typeOf R_this = Left $ T_object "this"
   typeOf (R_instanceField _ desc) = Left $ J.typeFromBS' $ CF.descType desc
   typeOf (R_staticField   _ desc) = Left $ J.typeFromBS' $ CF.descType desc
-  typeOf s = error $ show s
+  typeOf (R_array (VLocal v) _) = Right v
+  typeOf (R_array (VExpr  e) _) = typeOf e
+
+  typeOf s = error $ "TypeableJ ref: " ++ show s
 
 instance TypeableJ Value Value where
   typeOf (VConst c) = typeOf c
@@ -104,7 +107,7 @@ simpleTyper (meth@(Method _ ls is ms me)) =
 
     rMap = M.empty
 
-    (ms2, (types2, _)) = ST.runState (mapM go $ map snd ms) (types, rMap)
+    (ms2, (types2, _)) = ST.runState (mapM (go.snd) ms) (types, rMap)
     types = M.fromList $ map (\(LocalDecl t l) -> (l, t)) ls
 
     db a = traceShow a a
@@ -112,6 +115,9 @@ simpleTyper (meth@(Method _ ls is ms me)) =
     go :: Stmt Value -> ST.State SimpleTyperST (Stmt Value)
     go s = do case s of
                 S_assign (VarLocal v) e -> set v $ typeOf e
+                S_ifElse  _ left right -> mapM_ (go.snd) $ left ++ right
+                S_switch _ _ ls -> mapM_ (go.snd) $ concat $ map snd ls
+                S_doWhile _ body _ -> mapM_ (go.snd) body
                 _ -> return ()
               m <- ST.gets snd
               return $ rename m `fmap` s
