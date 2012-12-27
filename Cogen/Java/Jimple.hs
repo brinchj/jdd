@@ -91,8 +91,11 @@ instance Javable (JimpleMethod Value) where
 
 
 methodToJava (Method sig locals0 idents stmts excs) =
-  Java $ [ JavaBlock (concat [str methodName, "(", params, ")"]) code ""]
+  Java $ [JavaBlock methodHead code ""]
   where
+    methodHead = concat [
+      type_ methodResult, " ", str methodName, "(", params, ") "]
+
     locals1 = filter (\(LocalDecl _ (Local nm)) -> nm `notElem` argNames) locals0
     argNames = take (length methodParams) $ map (('l':).show) [0..]
     argTypes = map type_ methodParams
