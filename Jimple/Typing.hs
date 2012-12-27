@@ -95,7 +95,7 @@ instance TypeableJ Value Value where
 
 type SimpleTyperST = (M.Map Local Type, M.Map Local Local)
 simpleTyper :: JimpleMethod Value -> JimpleMethod Value
-simpleTyper (meth@(Method ls is ms me)) =
+simpleTyper (meth@(Method _ ls is ms me)) =
   meth { methodLocalDecls = ls2
        , methodStmts = zip (map fst ms) ms2
        }

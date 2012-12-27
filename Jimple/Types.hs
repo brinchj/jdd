@@ -14,7 +14,8 @@ type LabelStmt v = (Maybe Label, Stmt v)
 
 
 data JimpleMethod v = Method
-                      { methodLocalDecls :: [LocalDecl]
+                      { methodSig        :: MethodSignature
+                      , methodLocalDecls :: [LocalDecl]
                       , methodIdentStmts :: [IdentStmt v]
                       , methodStmts      :: [LabelStmt v]
                       , methodExcepts    :: [Except v] }

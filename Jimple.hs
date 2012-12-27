@@ -449,7 +449,7 @@ byteCodeP = do
 parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod Value)
 parseJimple cf method =
   go $! ST.runState (R.runReaderT goM cf)
-        (Method [] [] [] [],
+        (Method sig [] [] [] [],
          JimpleST stackVars [] 0 0)
   where
     stackVars = map (VarLocal . Local . ("s"++) . show) [1..]
@@ -461,7 +461,7 @@ parseJimple cf method =
     code = blockAttrs M.! "Code"
 
     goM = do
-      let MethodSig _ _ vs r = methodSig' blockDesc $
+      let MethodSig _ _ vs r = methodSigFromBS' blockDesc $
                                MethodSig (CF.Class "") blockDesc
       modifyFst $ \m -> m { methodLocalDecls = zipWith decl vs ns }
       unless isStatic $
@@ -473,3 +473,8 @@ parseJimple cf method =
 
     ns = if isStatic then [0..] else [1..]
     isStatic = testBit blockFlags 3
+
+    sig = MethodSig (CF.unClassRef $ CF.classThis cf) name params result
+
+    name = blockName
+    (params, result) = methodTypeFromBS' blockDesc

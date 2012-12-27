@@ -33,6 +33,7 @@ phase3 = mapFix $ mapSwitch . mapWhile . mapGotoIf . mapElimGoto
 run path method = do
   cf <- CF.parseClassFile <$> B.readFile path
   print cf
+
   let (err, meth0) = parseJimple cf method
       -- Code rewriting
       transform = phase3 . phase2 . phase1
@@ -40,7 +41,7 @@ run path method = do
       -- Type local declarations
       meth2 = simpleTyper meth1
       -- Unpack
-      Method ls idents code excs = meth2
+      Method sig ls idents code excs = meth2
 
   maybe (return ()) print err
 
@@ -50,3 +51,5 @@ run path method = do
   putStrLn "\n--\nMethod code:"
   putStrLn $ flatCode $ join $ map toJava $ map snd code
   putStrLn "--\n"
+
+  return meth2
