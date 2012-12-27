@@ -451,4 +451,4 @@ parseJimple cf method =
     decl t n = LocalDecl t $ Local $ 'l' : show n
 
     ns = if isStatic then [0..] else [1..]
-    isStatic = blockFlags .&. 8 == 1
+    isStatic = testBit blockFlags 3
