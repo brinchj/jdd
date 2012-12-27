@@ -7,6 +7,8 @@ module Jimple.Typing where
 
 import Util
 import Jimple.Types
+
+import qualified Jimple as J
 import qualified Parser as CF
 
 import Data.Either
@@ -79,6 +81,12 @@ instance (TypeableJ v v) => TypeableJ (Expression v) v where
   typeOf e = limitT $ map typeOf $ F.toList e
 
 
+instance Show v => TypeableJ (Ref v) v where
+  typeOf R_this = Left $ T_object "this"
+  typeOf (R_instanceField _ desc) = Left $ J.typeFromBS' $ CF.descType desc
+  typeOf (R_staticField   _ desc) = Left $ J.typeFromBS' $ CF.descType desc
+  typeOf s = error $ show s
+
 instance TypeableJ Value Value where
   typeOf (VConst c) = typeOf c
   typeOf (VLocal v) = Right v
@@ -114,15 +122,21 @@ simpleTyper (meth@(Method ls is ms me)) =
 
     set :: Local -> TypeV Value -> ST.State SimpleTyperST ()
     set (Local "_") _ = return ()
+
     set (Local nm) (Left t) = do
       let nms = nm:[nm ++ '_' : show i | i <- [2..]]
       nm2 <- Local <$> findMatch t nms
       modifySnd $ M.insert (Local nm) nm2
+
     set (Local nm) (Right (VarLocal l)) = do
       mt <- ST.gets $ M.lookup l . fst
       case mt of
         Nothing -> return ()
         Just t  -> set (Local nm) $ Left t
+
+    set (Local nm) (Right (VarRef r)) = do
+      set (Local nm) $ typeOf r
+
     set a b = error $ "not prepared for: " ++ show a ++ ", " ++ show b
 
 
