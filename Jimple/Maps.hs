@@ -89,9 +89,8 @@ decrypt = B.pack . snd . L.mapAccumL go 42 . delay
 
 
 -- Identify pure values (no side-effects, used for inlining and cleaning)
-pureValue (VConst _) = True
-pureValue (VLocal (VarLocal _)) = True
-pureValue _ = False
+pureValue (VExpr (E_invoke _ _ _)) = False
+pureValue _ = True
 
 
 -- Clean up dead code by removing pure values that aren't used
