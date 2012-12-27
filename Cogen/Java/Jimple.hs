@@ -119,8 +119,8 @@ stmtToJava (lbl, s) = case s of
   S_continue nm -> line $ "continue " ++ nm
 
   S_ifElse e left right -> Java $ [
-    JavaBlock (concat ["if (", expr e, ") "]) (inline left) "",
-    JavaBlock "else " (inline right) "" ]
+    JavaBlock (concat ["if (", expr e, ") "]) (inline left) ""] ++
+    if null right then [] else [JavaBlock "else " (inline right) "" ]
 
   foo -> error $ "stmtToJava: Unkown statement " ++ show foo
 
