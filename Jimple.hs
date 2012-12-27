@@ -301,8 +301,9 @@ byteCodeP = do
                  params <- replicateM (length $ methodParams method) popI
                  objRef <- popI
                  v      <- resultVar method
-                 append $! S_assign v $ VExpr $
-                           E_invoke (I_special objRef) method params
+                 unless (methodName method == "<init>") $ -- init is implicit
+                   append $! S_assign v $ VExpr $
+                             E_invoke (I_special objRef) method params
 
       -- INVOKESTATIC: invoke a static method (no object ref)
       0xb8 -> do method <- methodP
