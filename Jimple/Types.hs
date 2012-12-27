@@ -181,15 +181,15 @@ instance Show v => Show (Stmt v) where
 
   show (S_goto lbl)      = "goto " ++ show lbl
   show (S_if con lbl)    = "if (" ++ show con ++ ") " ++ show lbl
-  show (S_ifElse c a b)  = concat $ ["if (", show c, ") "
-                                    , show a, " else "
-                                    , show b]
+  show (S_ifElse c a b)  = concat ["if (", show c, ") "
+                                  , show a, " else "
+                                  , show b]
 
   show (S_continue name) = "continue " ++ name
   show (S_break    name) = "break "    ++ name
 
-  show (S_doWhile name body cond) = concat $ [name, ": do ", show body
-                                             , " while (", show cond, ")"]
+  show (S_doWhile name body cond) = concat [name, ": do ", show body
+                                           , " while (", show cond, ")"]
 
   show (S_lookupSwitch v lbl ls) = "lswitch " ++ show v ++ " " ++ show lbl ++ " " ++ show ls
 
@@ -202,7 +202,7 @@ instance Show v => Show (Stmt v) where
   show (S_tableSwitch i lbl ls) = "tswitch" ++ show i ++ " " ++ show lbl ++ " "
                                   ++ show ls
 
-  show (S_switch name v cs) = concat $ [name, ": switch (", show v, ") ", show cs]
+  show (S_switch name v cs) = concat [name, ": switch (", show v, ") ", show cs]
 
   show (S_throw i) = "throw " ++ show i
 

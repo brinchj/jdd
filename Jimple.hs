@@ -61,13 +61,13 @@ methodTypeP = do
 
 
 methodTypeFromBS :: B.ByteString -> Either ParseError ([Type], Type)
-methodTypeFromBS bs = runP (methodTypeP) () "typesFromBS" bs
+methodTypeFromBS = runP methodTypeP () "typesFromBS"
 
 methodTypeFromBS' :: B.ByteString -> ([Type], Type)
 methodTypeFromBS' = either (error.show) id . methodTypeFromBS
 
 typeFromBS :: B.ByteString -> Either ParseError Type
-typeFromBS bs = runP typeP () "typeFromBS" bs
+typeFromBS = runP typeP () "typeFromBS"
 
 typeFromBS' :: B.ByteString -> Type
 typeFromBS' = either (const T_unknown) id . typeFromBS

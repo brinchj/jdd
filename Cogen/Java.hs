@@ -9,7 +9,7 @@ data Java = Java [JavaStmt]
           deriving Show
 
 instance Codeable Java where
-  toCode ind (Java stmts) = concat $ map (toCode ind) stmts
+  toCode ind (Java stmts) = concatMap (toCode ind) stmts
 
 
 -- Data types to represent blocks of Java-statements
@@ -25,8 +25,7 @@ instance Codeable JavaStmt where
 
   toCode ind (JavaBlock left stmts right) =
     let indS = replicate ind ' ' in
-    [ [indS, left, "{"] ] ++
-    (concat $ map (toCode $ 4 + ind) stmts) ++
+    [indS, left, "{"] : concatMap (toCode $ 4 + ind) stmts ++
     [ [indS, "}", right ] ]
 
 

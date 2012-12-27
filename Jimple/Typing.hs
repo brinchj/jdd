@@ -116,7 +116,7 @@ simpleTyper (meth@(Method _ ls is ms me)) =
     go s = do case s of
                 S_assign (VarLocal v) e -> set v $ typeOf e
                 S_ifElse  _ left right -> mapM_ (go.snd) $ left ++ right
-                S_switch _ _ ls -> mapM_ (go.snd) $ concat $ map snd ls
+                S_switch _ _ ls -> mapM_ (go.snd) $ concatMap snd ls
                 S_doWhile _ body _ -> mapM_ (go.snd) body
                 _ -> return ()
               m <- ST.gets snd
@@ -140,7 +140,7 @@ simpleTyper (meth@(Method _ ls is ms me)) =
         Nothing -> return ()
         Just t  -> set (Local nm) $ Left t
 
-    set (Local nm) (Right (VarRef r)) = do
+    set (Local nm) (Right (VarRef r)) =
       set (Local nm) $ typeOf r
 
     set a b = error $ "not prepared for: " ++ show a ++ ", " ++ show b

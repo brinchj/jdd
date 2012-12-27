@@ -252,7 +252,7 @@ classFile = do
 
   -- Parse and update constant pool
   -- iterate over it to get references right
-  replicateM 10 $ lookAhead constantPoolP
+  replicateM_ 10 $ lookAhead constantPoolP
   constantPoolP
 
   -- flags

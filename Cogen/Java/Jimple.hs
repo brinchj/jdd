@@ -9,6 +9,8 @@ import Data.List
 
 import qualified Data.ByteString.Char8 as B
 
+import Control.Monad.Writer (execWriter, tell, when, unless)
+
 import Parser (Desc(..), Class(..))
 import Cogen.Java (join, Java(..), Javable(..), JavaStmt(..))
 import Jimple.Types
@@ -24,7 +26,7 @@ instance Javable (LabelStmt Value) where
   toJava = stmtToJava
 
 
-line st = Java $ [JavaStmt 0 $ st ++ ";"]
+line st = Java [JavaStmt 0 $ st ++ ";"]
 
 
 -- class path
@@ -72,9 +74,9 @@ expr e = case e of
   E_mul a b -> op "*" a b
   E_div a b -> op "*" a b
 
-  E_length a -> concat [value a, ".length"]
+  E_length a -> value a ++ ".length"
 
-  E_new rf -> concat ["new ", ref rf]
+  E_new rf -> "new " ++ ref rf
   E_newArray t i -> concat ["new ", type_ t, "[", value i, "]"]
 
   E_invoke it (MethodSig cp nm pars res _) args ->
@@ -122,24 +124,25 @@ stmtToJava (lbl, s) = case s of
   S_return v   -> line $ concat ["return (", value v, ")"]
   S_returnVoid -> line "return"
 
-  S_doWhile nm body v -> Java $ [
+  S_doWhile nm body v -> Java [
     JavaBlock (nm ++ ": do ") (inline body) (concat [" while (", value v, ");"])]
 
   S_break nm -> line $ "break " ++ nm
   S_continue nm -> line $ "continue " ++ nm
 
-  S_ifElse e left right -> Java $ [
-    JavaBlock (concat ["if (", expr e, ") "]) (inline left) ""] ++
-    if null right then [] else [JavaBlock "else " (inline right) "" ]
+  S_ifElse e left right -> Java $ execWriter $ do
+    tell [JavaBlock (concat ["if (", expr e, ") "]) (inline left) ""]
+    unless (null right) $
+      tell [JavaBlock "else " (inline right) ""]
 
   S_switch nm v ls ->
     -- Regular cases
     let cases = [ JavaStmt (-4) (concat ["case ", show i, ":"]) : inline stmts
                 | (Just i, stmts) <- ls ] in
     -- Default case
-    let def   = [ (JavaStmt (-4) "default:") : inline stmts
+    let def   = [ JavaStmt (-4) "default:" : inline stmts
                 | (Nothing, stmts) <- ls, not $ null stmts] in
-    Java $ [
+    Java [
       JavaBlock (concat [nm, ": switch(", value v, ") "]) (inline $ cases ++ def) ""
     ]
 
@@ -155,7 +158,7 @@ instance Javable (JimpleMethod Value) where
 
 
 methodToJava (Method sig locals0 idents stmts excs) =
-  Java $ [JavaBlock methodHead code ""]
+  Java [JavaBlock methodHead code ""]
   where
     methodHead = concat [
       type_ methodResult, " ", str methodName, "(", params, ") "]
