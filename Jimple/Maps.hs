@@ -65,7 +65,7 @@ mapFix f v = fst $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
 
 
 -- Replace calls to Woddlecakes.int with decrypted string-constants
-mapDecrypt (Method a b ops d) = Method a b (map go ops) d
+mapDecrypt m = m { methodStmts = map go $ methodStmts m }
   where
     go (l, S_assign r (VExpr (E_invoke I_static sig [VConst (C_string x)])))
       | methodClass  sig == CF.Class "dk/danid/plugins/Woddlecakes" &&
@@ -95,7 +95,7 @@ pureValue _ = False
 
 
 -- Clean up dead code by removing pure values that aren't used
-mapCleanup (Method a b ops d) = Method a b (go ops) d
+mapCleanup m = m { methodStmts = go $ methodStmts m }
   where
     go s = reverse $ catMaybes $ ST.evalState (mapM go' $ reverse s) S.empty
 
@@ -122,7 +122,7 @@ mapCleanup (Method a b ops d) = Method a b (go ops) d
 
 
 -- Perform value-inlining of pure values
-mapInline (Method a b ops d) = Method a b (go ops) d
+mapInline m = m { methodStmts = go $ methodStmts m }
   where
     go s = ST.evalState (mapM go' s) M.empty
 
@@ -142,7 +142,7 @@ mapInline (Method a b ops d) = Method a b (go ops) d
 
 
 -- Rewrite labels from relative to absolute, while removing unused ones.
-mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
+mapCorrectLabels m = m { methodStmts = go $ methodStmts m }
   where
     go s = map f s'
       where
@@ -169,7 +169,7 @@ mapCorrectLabels (Method a b ops d) = Method a b (go ops) d
 
 
 -- Rewrite Jimple code according to rule
-mapRewrite rule (Method a b ops d) = Method a b (go ops) d
+mapRewrite rule m = m { methodStmts = go $ methodStmts m }
   where
     go ops = maybe ops go $ rewrite rule ops
 
@@ -258,7 +258,7 @@ mapGotoIf = mapRewrite $ do
 -- > if cond whileLbl
 --
 -- body1 may contain other loops/ifs, break and continue
-mapWhile  (Method a b ops d) = Method a b (go ops) d
+mapWhile  m = m { methodStmts = go $ methodStmts m }
   where
     go ops = fromMaybe ops $ rewrite rule ops
 
@@ -292,7 +292,7 @@ mapWhile  (Method a b ops d) = Method a b (go ops) d
     backrefs = L.foldl' (\refs (i, (mlbl, cmd)) ->
                           maybe id (`M.insert` (i, [])) mlbl $
                           maybe refs (addRef refs (i, cmd)) $ jumpLabel cmd
-                        ) M.empty $ zip [0..] ops
+                        ) M.empty $ zip [0..] $ methodStmts m
 
 
 replaceLabels labels = mapS go
