@@ -268,7 +268,7 @@ byteCodeP = do
       0xb0 -> append =<< S_return . VLocal <$> pop
 
       -- RETURN: return void
-      0xb1 -> append $! S_returnVoid
+      0xb1 -> append S_returnVoid
 
       -- GETSTATIC: get static field
       0xb2 -> do

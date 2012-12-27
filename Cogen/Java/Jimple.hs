@@ -82,7 +82,7 @@ expr e = case e of
   E_invoke it (MethodSig cp nm pars res _) args ->
     let path1 = if it == I_static then path $ classPath cp else invoke it in
     if nm == "<init>" then
-      concat [path1, intercalate "," (map value args)]
+      path1 ++ intercalate "," (map value args)
     else
       concat [path1, ".", str nm, "(", intercalate "," (map value args), ")"]
 
@@ -134,7 +134,7 @@ stmtToJava (lbl, s) = case s of
   S_nop -> Java []
 
 
-  S_assign v val | var v == "_" -> line $ value val
+  S_assign v val | var v == "_" -> line $ value val ++ " /* empty assign */ "
   S_assign v val -> line $ var v ++ " = " ++ value val
 
   S_return v   -> line $ concat ["return (", value v, ")"]

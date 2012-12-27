@@ -88,7 +88,7 @@ jumpLabel _ = Nothing
 
 jumpP = satisfy $ isJust . jumpLabel . snd
 
-switchStmt (S_lookupSwitch _ _ _) = True
+switchStmt S_lookupSwitch{} = True
 switchStmt _ = False
 
 switchP = satisfy $ switchStmt . snd
