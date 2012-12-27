@@ -1,4 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances
+           , RecordWildCards
+  #-}
 
 module Cogen.Java.Jimple where
 
@@ -8,7 +10,7 @@ import Data.List
 import qualified Data.ByteString.Char8 as B
 
 import Parser (Desc(..), Class(..))
-import Cogen.Java (Java(..), Javable(..), JavaStmt(..))
+import Cogen.Java (join, Java(..), Javable(..), JavaStmt(..))
 import Jimple.Types
 
 
@@ -18,7 +20,7 @@ import Jimple.Types
 -- return ()
 
 --
-instance Javable (Stmt Value) where
+instance Javable (LabelStmt Value) where
   toJava = stmtToJava
 
 
@@ -38,6 +40,13 @@ str = B.unpack
 
 -- constant
 const (C_string s) = show s
+
+
+-- types
+type_ t = case t of
+  T_array n tp -> concat $ type_ tp:replicate n "[]"
+  T_object cp  -> path cp
+  foo -> show foo
 
 
 -- expression
@@ -66,7 +75,32 @@ value (VLocal v) = var v
 value (VExpr  e) = expr e
 
 
-stmtToJava s = case s of
+stmtToJava (lbl, s) = case s of
   S_assign v val | var v == "_" -> line $ value val
   S_assign v val -> line $ var v ++ " = " ++ value val
   S_returnVoid -> line "return"
+
+
+instance Javable LocalDecl where
+  toJava (LocalDecl tp (Local nm)) = Java [
+    JavaStmt 0 $ concat [ type_ tp, " ", nm, ";"] ]
+
+instance Javable (JimpleMethod Value) where
+  toJava = methodToJava
+
+
+methodToJava (Method sig locals0 idents stmts excs) =
+  Java $ [ JavaBlock (concat [str methodName, "(", params, ")"]) code ""]
+  where
+    locals1 = filter (\(LocalDecl _ (Local nm)) -> nm `notElem` argNames) locals0
+    argNames = take (length methodParams) $ map (('l':).show) [0..]
+    argTypes = map type_ methodParams
+    params   = intercalate ", " [
+      concat [ts, " ", nm] | (ts, nm) <- zip argTypes argNames]
+
+    header = join $ map toJava locals1
+    body   = join $ map toJava stmts
+
+    Java code = join [header, body]
+
+    MethodSig{..} = sig

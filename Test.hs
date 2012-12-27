@@ -49,7 +49,7 @@ run path method = do
   print idents
 
   putStrLn "\n--\nMethod code:"
-  putStrLn $ flatCode $ join $ map toJava $ map snd code
+  putStrLn $ flatCode $ join $ map toJava code
   putStrLn "--\n"
 
   return meth2
