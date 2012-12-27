@@ -9,6 +9,12 @@ import Jimple.Typing
 import Jimple.Types
 import Jimple.Maps
 
+-- import Cogen
+import Cogen
+import Cogen.Java
+import Cogen.Java.Jimple
+
+
 import qualified Parser as CF
 
 import qualified Data.Map as Map
@@ -33,4 +39,8 @@ run path method = do
   mapM_ (print) c
   maybe (return ()) print err
 
-  return meth'
+  print (a, b)
+
+  putStrLn "\n--\nMethod code:"
+  putStrLn $ flatCode $ join $ map toJava $ map snd c
+  putStrLn "--\n"
