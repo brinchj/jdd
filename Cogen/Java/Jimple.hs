@@ -72,15 +72,24 @@ expr e = case e of
   E_mul a b -> op "*" a b
   E_div a b -> op "*" a b
 
-  E_invoke it (MethodSig _cl nm pars res) args ->
-    concat [invoke it, ".", str nm, "(", intercalate "," (map value args), ")"]
+  E_length a -> concat [value a, ".length"]
+
+  E_new rf -> concat ["new ", ref rf]
+  E_newArray t i -> concat ["new ", type_ t, "[", value i, "]"]
+
+  E_invoke it (MethodSig cp nm pars res) args ->
+    let path1 = if it == I_static then path $ classPath cp else invoke it in
+    concat [path1, ".", str nm, "(", intercalate "," (map value args), ")"]
+
+  _ -> error $ "expr: " ++ show e
 
   where
     op f a b = concat [value a, " ", f, " ", value b]
 
 -- invoke
-invoke (I_virtual v) = value v
-invoke (I_special v) = value v
+invoke (I_virtual   v) = value v
+invoke (I_special   v) = value v
+invoke (I_interface v) = value v
 
 
 -- variable
@@ -91,7 +100,8 @@ var (VarLocal l) = show l
 -- reference
 ref r = case r of
   R_staticField (Class cp) (Desc nm tp) -> concat [path cp, ".", str nm]
-
+  R_array v i -> concat [value v, "[", value i, "]"]
+  _ -> error $ "ref: " ++ show r
 
 -- value
 value (VConst c) = const c

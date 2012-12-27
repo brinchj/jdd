@@ -226,12 +226,12 @@ instance Show v => Show (Expression v) where
   show (E_div a b) = show a ++ " / " ++ show b
   show (E_rem a b) = show a ++ " rem " ++ show b
 
-  show (E_length a) = "len " ++ show a
+  show (E_length a) = "length " ++ show a
   show (E_cast t a) = "(" ++ show t ++ ") " ++ show a
   show (E_instanceOf i r) = show i ++ " instanceOf " ++ show r
-  show (E_newArray t i) = "new " ++ show t ++ "[" ++ show i ++ "]"
+  show (E_newArray t i) = "newArray " ++ show t ++ "[" ++ show i ++ "]"
   show (E_new r) = "new " ++ show r
-  show (E_newMultiArray t i is) = "new " ++ show t ++ "(" ++ show (i, is) ++ ")"
+  show (E_newMultiArray t i is) = "newMArray " ++ show t ++ "(" ++ show (i, is) ++ ")"
   show (E_invoke t m ims) = concat ["invoke ", show t, " "
                                    , show m, " ", show ims]
 
