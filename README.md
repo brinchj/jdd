@@ -20,7 +20,7 @@ jdd
     
     -- Method code:
     public static void main(String[] l0) {
-        System.out.println("Hello world!") /* empty assign */ ;
+        System.out.println("Hello world!");
         return;
     }
     --
