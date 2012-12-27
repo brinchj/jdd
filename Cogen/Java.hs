@@ -38,6 +38,12 @@ class Javable a where
 instance Javable a => Javable [a] where
   toJava l = join $ map toJava l
 
+instance Javable Java where
+  toJava = id
+
+instance Javable JavaStmt where
+  toJava = Java . return
+
 append :: Java -> Java -> Java
 append (Java a) (Java b) = Java $ a ++ b
 
