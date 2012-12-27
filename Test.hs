@@ -48,8 +48,12 @@ run path method = do
   print ls
   print idents
 
-  putStrLn "\n--\nMethod code:"
-  putStrLn $ flatCode $ join $ map toJava code
+  putStrLn "\n--\nMethod bytecode:"
+  mapM_ print code
+  putStrLn "--\n"
+
+  putStrLn "--\nMethod code:"
+  putStrLn $ flatCode $ toJava meth2
   putStrLn "--\n"
 
   return meth2
