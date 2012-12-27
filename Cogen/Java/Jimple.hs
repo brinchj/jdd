@@ -46,6 +46,7 @@ const (C_string s) = show s
 type_ t = case t of
   T_array n tp -> concat $ type_ tp:replicate n "[]"
   T_object cp  -> path cp
+  T_void -> "void"
   foo -> show foo
 
 
