@@ -88,6 +88,17 @@ decrypt = B.pack . snd . L.mapAccumL go 42 . delay
         dec       = ((prev + ki + k4i) `mod` 95) + 32
 
 
+-- StringBuilder.append("") does nothing
+mapAppendEmpty m = m { methodStmts = map go $ methodStmts m }
+  where
+    go (l, S_assign r (VExpr (E_invoke (I_virtual v) sig [VConst (C_string "")])))
+      | methodClass  sig == CF.Class "java/lang/StringBuilder" &&
+        methodName   sig == "append" &&
+        methodParams sig == [T_object "java/lang/String"] =
+          (l, S_assign r v)
+
+    go s = s
+
 -- Identify pure values (no side-effects, used for inlining and cleaning)
 pureValue (VExpr (E_invoke _ _ _)) = False
 pureValue (VExpr (E_new r)) = case r of

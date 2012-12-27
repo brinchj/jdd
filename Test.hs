@@ -27,7 +27,7 @@ list path =
   Map.keys . CF.classMethods . CF.parseClassFile <$> B.readFile path
 
 phase1 = mapCorrectLabels
-phase2 = mapFix $ mapCleanup . mapInline
+phase2 = mapFix $ mapCleanup . mapInline . mapAppendEmpty
 phase3 = mapFix $ mapSwitch . mapWhile . mapGotoIf . mapElimGoto
 
 run path method = do
