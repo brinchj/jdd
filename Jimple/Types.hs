@@ -77,19 +77,19 @@ data Local = Local String
 instance Show Local where show (Local s) = s
 
 
-data AccessFlags = F_public
-                 | F_private
-                 | F_protected
-                 | F_static
-                 | F_final
-                 | F_synchronized
-                 | F_bridge
-                 | F_varargs
-                 | F_native
-                 | F_abstract
-                 | F_strict
-                 | F_synthetic
-                 deriving (Eq, Ord, Show)
+data AccessFlag = F_public
+                | F_private
+                | F_protected
+                | F_static
+                | F_final
+                | F_synchronized
+                | F_bridge
+                | F_varargs
+                | F_native
+                | F_abstract
+                | F_strict
+                | F_synthetic
+                deriving (Eq, Ord)
 
 data Constant = C_double Double
               | C_float  Double
@@ -155,7 +155,7 @@ data InvokeType v = I_interface v
 data MethodSignature = MethodSig
                        { methodClass  :: CF.Class
                        , methodName   :: B.ByteString
-                       , methodAccess :: [ AccessFlags ]
+                       , methodAccess :: [ AccessFlag ]
                        , methodParams :: [Type]
                        , methodResult :: Type
                        }
@@ -215,6 +215,21 @@ instance Show Value where
   show (VConst c) = show c
   show (VLocal l) = show l
   show (VExpr  e) = show e
+
+
+instance Show AccessFlag where
+  show F_public = "public"
+  show F_private = "private"
+  show F_protected = "protected"
+  show F_static = "static"
+  show F_final = "final"
+  show F_synchronized = "synchronized"
+  show F_bridge = "INTERNAL_bridge"
+  show F_varargs = "INTERNAL_varargs"
+  show F_native = "native"
+  show F_abstract = "abstract"
+  show F_strict = "strictfp"
+  show F_synthetic = "INTERNAL_synthetic"
 
 
 instance Show v => Show (Expression v) where

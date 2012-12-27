@@ -180,7 +180,7 @@ instance Javable (JimpleMethod Value) where
 methodToJava (Method sig locals0 idents stmts excs) =
   Java [JavaBlock methodHead code ""]
   where
-    methodHead = concat [
+    methodHead = modifiers ++ concat [
       type_ methodResult, " ", str methodName, "(", params, ") "]
 
     locals1 = filter (\(LocalDecl _ (Local nm)) -> nm `notElem` argNames) locals0
@@ -197,3 +197,5 @@ methodToJava (Method sig locals0 idents stmts excs) =
     ns = if F_static `elem` methodAccess then [0..] else [1..]
 
     MethodSig{..} = sig
+
+    modifiers = concat $ zipWith (++) (map show methodAccess) $ repeat " "
