@@ -448,11 +448,13 @@ byteCodeP = do
              , T_byte   ,  T_short , T_int  , T_long   ]
 
 parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod Value)
-parseJimple cf method =
-  go $! ST.runState (R.runReaderT goM cf)
-        (Method sig [] [] [] [],
-         JimpleST stackVars [] 0 0)
+parseJimple cf method
+  | hasCode   = go $! ST.runState (R.runReaderT goM cf) (emptyMethod, emptyState)
+  | otherwise = (Nothing, emptyMethod)
   where
+    emptyMethod = Method   sig [] [] [] []
+    emptyState  = JimpleST stackVars [] 0 0
+
     stackVars = map (VarLocal . Local . ("s"++) . show) [1..]
 
     go (Left err, (meth, jst)) = (Just err, meth)
@@ -460,6 +462,7 @@ parseJimple cf method =
 
     CF.AttrBlock{..} = CF.classMethods cf M.! method
     code = blockAttrs M.! "Code"
+    hasCode = "Code" `M.member` blockAttrs
 
     goM = do
       let MethodSig _ _ _ vs r = methodSigFromBS' blockDesc $
