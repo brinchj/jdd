@@ -10,6 +10,7 @@ import Debug.Trace
 
 import Data.Bits
 import Data.Char
+import Data.Maybe
 import Data.Ord
 
 import Numeric
@@ -34,7 +35,7 @@ import Jimple.Types
 
 
 typeP :: Parser Type
-typeP = do
+typeP = try $ do
   tag <- anyChar
   case tag of
     'B' -> return T_byte
@@ -45,15 +46,28 @@ typeP = do
     'J' -> return T_long
     'S' -> return T_short
     'Z' -> return T_boolean
+    'V' -> return T_void
     'L' -> T_object . B.pack <$> anyChar `manyTill` char ';'
     '[' -> do
       dims <- length <$> option [] (many1 $ char '[')
       T_array (dims + 1) <$> typeP
     _   -> fail $ "Unknown type tag: " ++ show tag
 
+methodTypeP :: Parser ([Type], Type)
+methodTypeP = do
+  params <- P.between (char '(') (char ')') $ P.optionMaybe $ P.many typeP
+  result <- typeP
+  return (fromMaybe [] params, result)
+
+
+methodTypeFromBS :: B.ByteString -> Either ParseError ([Type], Type)
+methodTypeFromBS bs = runP (methodTypeP) () "typesFromBS" bs
+
+methodTypeFromBS' :: B.ByteString -> ([Type], Type)
+methodTypeFromBS' = either (error.show) id . methodTypeFromBS
 
 typeFromBS :: B.ByteString -> Either ParseError Type
-typeFromBS bs = runP typeP () "typeString" bs
+typeFromBS bs = runP typeP () "typeFromBS" bs
 
 typeFromBS' :: B.ByteString -> Type
 typeFromBS' = either (const T_unknown) id . typeFromBS
@@ -66,10 +80,10 @@ methodSigP meth = liftM2 meth paramsP resultP
     resultP = choice [try typeP, try voidP]
     voidP = char 'V' >> return T_void
 
-methodSig bs meth = runP (methodSigP meth) () "methodSig" bs
+methodSigFromBS bs meth = runP (methodSigP meth) () "methodSig" bs
 
-methodSig' bs meth = either (error $ "methodSig: " ++ show bs) id $
-                     methodSig bs meth
+methodSigFromBS' bs meth = either (error $ "methodSig: " ++ show bs) id $
+                     methodSigFromBS bs meth
 
 
 
@@ -395,7 +409,7 @@ byteCodeP = do
     -- read a method description from constant pool
     methodP = do
       Just (CF.Method path (CF.Desc name tpe)) <- askCP2
-      return $! methodSig' tpe $! MethodSig path name
+      return $! methodSigFromBS' tpe $! MethodSig path name
 
     -- apply operator to stack vars
     apply1 op = liftM op popI
