@@ -132,7 +132,7 @@ stmtToJava (lbl, s) = case s of
     JavaBlock (concat ["if (", expr e, ") "]) (inline left) ""] ++
     if null right then [] else [JavaBlock "else " (inline right) "" ]
 
-  foo -> error $ "stmtToJava: Unkown statement " ++ show foo
+  foo -> error $ "stmtToJava: Unknown statement " ++ show foo
 
 
 instance Javable LocalDecl where
