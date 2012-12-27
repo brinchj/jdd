@@ -67,6 +67,11 @@ expr e = case e of
   E_ne a b -> op "!=" a b
   E_gt a b -> op ">"  a b
 
+  E_add a b -> op "+" a b
+  E_sub a b -> op "-" a b
+  E_mul a b -> op "*" a b
+  E_div a b -> op "*" a b
+
   E_invoke it (MethodSig _cl nm pars res) args ->
     concat [invoke it, ".", str nm, "(", intercalate "," (map value args), ")"]
 
