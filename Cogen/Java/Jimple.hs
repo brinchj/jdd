@@ -47,7 +47,7 @@ const (C_int    i)  = show i
 const (C_long   l)  = show l
 const (C_string s)  = show s
 const C_null        = "NULL"
-const (C_boolean b) = show b
+const (C_boolean b) = if b then "true" else "false"
 
 -- types
 type_ t = case t of
