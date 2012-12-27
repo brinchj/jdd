@@ -88,6 +88,18 @@ expr e = case e of
   where
     op f a b = concat [value a, " ", f, " ", value b]
 
+
+-- flip a bool expression
+flipExpr :: Expression Value -> Expression Value
+flipExpr (E_eq a b) = E_ne a b -- =  to /=
+flipExpr (E_ge a b) = E_lt a b -- >= to <
+flipExpr (E_le a b) = E_gt a b -- <= to >
+flipExpr (E_lt a b) = E_ge a b -- <  to >=
+flipExpr (E_ne a b) = E_eq a b -- /= to  =
+flipExpr (E_gt a b) = E_le a b -- >  to <=
+flipExpr e = E_eq (VExpr e) $ VConst $ C_boolean False
+
+
 -- invoke
 invoke (I_virtual   v) = value v
 invoke (I_special   v) = value v
@@ -130,10 +142,13 @@ stmtToJava (lbl, s) = case s of
   S_break nm -> line $ "break " ++ nm
   S_continue nm -> line $ "continue " ++ nm
 
-  S_ifElse e left right -> Java $ execWriter $ do
-    tell [JavaBlock (concat ["if (", expr e, ") "]) (inline left) ""]
-    unless (null right) $
-      tell [JavaBlock "else " (inline right) ""]
+  S_ifElse e0 left0 right0 -> Java $ execWriter $ do
+    -- Flip condition when "main" body is empty (else is non-empty)
+    let (e1, left1, right1) = if not $ null left0 then (e0, left0, right0)
+                              else (flipExpr e0, right0, left0)
+    tell [JavaBlock (concat ["if (", expr e1, ") "]) (inline left1) ""]
+    unless (null right1) $
+      tell [JavaBlock "else " (inline right1) ""]
 
   S_switch nm v ls ->
     -- Regular cases
