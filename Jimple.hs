@@ -462,7 +462,7 @@ parseJimple cf method =
 
     goM = do
       let MethodSig _ _ _ vs r = methodSigFromBS' blockDesc $
-                                 MethodSig (CF.Class "") blockDesc activeFlags
+                                 MethodSig (CF.Class "") blockDesc []
       modifyFst $ \m -> m { methodLocalDecls = zipWith decl vs ns }
       unless isStatic $
         modifyFst $ \m -> m { methodIdentStmts = [IStmt (Local "l0") R_this]}
@@ -472,14 +472,14 @@ parseJimple cf method =
     decl t n = LocalDecl t $ Local $ 'l' : show n
 
     ns = if isStatic then [0..] else [1..]
-    isStatic = F_static `elem` activeFlags
+    isStatic = F_static `elem` accFlags
 
-    sig = MethodSig (CF.unClassRef $ CF.classThis cf) name [] params result
+    sig = MethodSig (CF.unClassRef $ CF.classThis cf) name accFlags params result
 
     name = blockName
     (params, result) = methodTypeFromBS' blockDesc
 
-    activeFlags = [ flag | (i, flag) <- flags, blockFlags `testBit` i ]
+    accFlags = [ flag | (i, flag) <- flags, blockFlags `testBit` i ]
     flags = [ ( 0, F_public)
             , ( 1, F_private)
             , ( 2, F_protected)
