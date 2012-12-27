@@ -90,6 +90,10 @@ decrypt = B.pack . snd . L.mapAccumL go 42 . delay
 
 -- Identify pure values (no side-effects, used for inlining and cleaning)
 pureValue (VExpr (E_invoke _ _ _)) = False
+pureValue (VExpr (E_new r)) = case r of
+  R_instanceField _ _ -> True
+  R_staticField   _ _ -> True
+  _ -> False
 pureValue _ = True
 
 
