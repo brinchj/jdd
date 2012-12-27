@@ -66,7 +66,7 @@ isCmp e = case e of
    _          -> False
 
 instance (TypeableJ v v) => TypeableJ (Expression v) v where
-  typeOf (E_length v) = typeOf v
+  typeOf (E_length v) = Left T_int
   typeOf (E_cast t v) = Left t
   typeOf (E_instanceOf v _) = Left T_boolean
   typeOf (E_newArray t v) = Left $ T_array 1 t
