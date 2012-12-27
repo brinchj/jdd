@@ -82,7 +82,7 @@ expr e = case e of
   E_invoke it (MethodSig cp nm pars res _) args ->
     let path1 = if it == I_static then path $ classPath cp else invoke it in
     if nm == "<init>" then
-      concat [path1, "(", intercalate "," (map value args), ")"]
+      concat [path1, intercalate "," (map value args)]
     else
       concat [path1, ".", str nm, "(", intercalate "," (map value args), ")"]
 
@@ -118,7 +118,7 @@ var (VarLocal l) = show l
 ref r = case r of
   R_staticField (Class cp) (Desc nm tp) -> concat [path cp, ".", str nm]
   R_array v i -> concat [value v, "[", value i, "]"]
-  R_object cl -> path $ classPath cl
+  R_object cl -> path (classPath cl) ++ "()"  -- TODO: R_object without () ??
   _ -> error $ "ref: " ++ show r
 
 -- value
