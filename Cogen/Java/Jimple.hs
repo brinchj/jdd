@@ -132,6 +132,17 @@ stmtToJava (lbl, s) = case s of
     JavaBlock (concat ["if (", expr e, ") "]) (inline left) ""] ++
     if null right then [] else [JavaBlock "else " (inline right) "" ]
 
+  S_switch nm v ls ->
+    -- Regular cases
+    let cases = [ JavaStmt (-4) (concat ["case ", show i, ":"]) : inline stmts
+                | (Just i, stmts) <- ls ] in
+    -- Default case
+    let def   = [ (JavaStmt (-4) "default:") : inline stmts
+                | (Nothing, stmts) <- ls, not $ null stmts] in
+    Java $ [
+      JavaBlock (concat [nm, ": switch(", value v, ") "]) (inline $ cases ++ def) ""
+    ]
+
   foo -> error $ "stmtToJava: Unknown statement " ++ show foo
 
 
