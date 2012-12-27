@@ -35,6 +35,9 @@ instance Codeable JavaStmt where
 class Javable a where
   toJava :: a -> Java
 
+instance Javable a => Javable [a] where
+  toJava l = join $ map toJava l
+
 append :: Java -> Java -> Java
 append (Java a) (Java b) = Java $ a ++ b
 
