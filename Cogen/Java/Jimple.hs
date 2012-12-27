@@ -28,10 +28,12 @@ line st = Java $ [JavaStmt 0 $ st ++ ";"]
 
 
 -- class path
-path = str . B.map fix
+path cp0 = str $ B.map fix cp1
   where
     fix '/' = '.'
     fix c   = c
+
+    cp1 = if B.take 10 cp0 == "java/lang/" then B.drop 10 cp0 else cp0
 
 
 -- string (TODO: UTF8?)
