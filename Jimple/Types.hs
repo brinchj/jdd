@@ -94,7 +94,7 @@ data Ref v = R_caughtException
            | R_this
            | R_array         v v
            | R_instanceField v CF.Desc
-           | R_staticField     CF.Desc
+           | R_staticField     CF.Class CF.Desc
            | R_object          CF.Class
            deriving (Eq, Ord, Show, Functor, F.Foldable)
 

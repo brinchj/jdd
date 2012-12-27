@@ -249,6 +249,11 @@ byteCodeP = do
       -- RETURN: return void
       0xb1 -> append $! S_returnVoid
 
+      -- GETSTATIC: get static field
+      0xb2 -> do
+        Just (CF.FieldRef cs desc) <- askCP2
+        void $ push $! VLocal $! VarRef $! R_staticField cs desc
+
       -- GETFIELD: get instance field
       0xb4 -> do
         Just (CF.FieldRef cs desc) <- askCP2
