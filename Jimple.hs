@@ -52,6 +52,13 @@ typeP = do
     _   -> fail $ "Unknown type tag: " ++ show tag
 
 
+typeFromBS :: B.ByteString -> Either ParseError Type
+typeFromBS bs = runP typeP () "typeString" bs
+
+typeFromBS' :: B.ByteString -> Type
+typeFromBS' = either (const T_unknown) id . typeFromBS
+
+
 methodSigP :: ([Type] -> Type -> MethodSignature) -> Parser MethodSignature
 methodSigP meth = liftM2 meth paramsP resultP
   where
