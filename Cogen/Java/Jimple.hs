@@ -115,6 +115,7 @@ var (VarLocal l) = show l
 ref r = case r of
   R_staticField (Class cp) (Desc nm tp) -> concat [path cp, ".", str nm]
   R_array v i -> concat [value v, "[", value i, "]"]
+  R_object cl -> path $ classPath cl
   _ -> error $ "ref: " ++ show r
 
 -- value
