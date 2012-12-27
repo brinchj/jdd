@@ -77,6 +77,20 @@ data Local = Local String
 instance Show Local where show (Local s) = s
 
 
+data AccessFlags = F_public
+                 | F_private
+                 | F_protected
+                 | F_static
+                 | F_final
+                 | F_synchronized
+                 | F_bridge
+                 | F_varargs
+                 | F_native
+                 | F_abstract
+                 | F_strict
+                 | F_synthetic
+                 deriving (Eq, Ord, Show)
+
 data Constant = C_double Double
               | C_float  Double
               | C_int    Integer
@@ -141,8 +155,10 @@ data InvokeType v = I_interface v
 data MethodSignature = MethodSig
                        { methodClass  :: CF.Class
                        , methodName   :: B.ByteString
+                       , methodAccess :: [ AccessFlags ]
                        , methodParams :: [Type]
-                       , methodResult :: Type         }
+                       , methodResult :: Type
+                       }
                      deriving (Eq, Ord, Show)
 
 data Type = T_byte | T_char  | T_int | T_boolean | T_short

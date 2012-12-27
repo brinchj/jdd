@@ -409,7 +409,7 @@ byteCodeP = do
     -- read a method description from constant pool
     methodP = do
       Just (CF.Method path (CF.Desc name tpe)) <- askCP2
-      return $! methodSigFromBS' tpe $! MethodSig path name
+      return $! methodSigFromBS' tpe $! MethodSig path name []
 
     -- apply operator to stack vars
     apply1 op = liftM op popI
@@ -461,8 +461,8 @@ parseJimple cf method =
     code = blockAttrs M.! "Code"
 
     goM = do
-      let MethodSig _ _ vs r = methodSigFromBS' blockDesc $
-                               MethodSig (CF.Class "") blockDesc
+      let MethodSig _ _ _ vs r = methodSigFromBS' blockDesc $
+                                 MethodSig (CF.Class "") blockDesc activeFlags
       modifyFst $ \m -> m { methodLocalDecls = zipWith decl vs ns }
       unless isStatic $
         modifyFst $ \m -> m { methodIdentStmts = [IStmt (Local "l0") R_this]}
@@ -472,9 +472,25 @@ parseJimple cf method =
     decl t n = LocalDecl t $ Local $ 'l' : show n
 
     ns = if isStatic then [0..] else [1..]
-    isStatic = testBit blockFlags 3
+    isStatic = F_static `elem` activeFlags
 
-    sig = MethodSig (CF.unClassRef $ CF.classThis cf) name params result
+    sig = MethodSig (CF.unClassRef $ CF.classThis cf) name [] params result
 
     name = blockName
     (params, result) = methodTypeFromBS' blockDesc
+
+    activeFlags = [ flag | (i, flag) <- flags, blockFlags `testBit` i ]
+    flags = [ ( 0, F_public)
+            , ( 1, F_private)
+            , ( 2, F_protected)
+            , ( 3, F_static)
+            , ( 4, F_final)
+            , ( 5, F_synchronized)
+            , ( 6, F_bridge)
+            , ( 7, F_varargs)
+            , ( 8, F_native)
+              -- gap
+            , (10, F_abstract)
+            , (11, F_strict)
+            , (12, F_synthetic)
+            ]

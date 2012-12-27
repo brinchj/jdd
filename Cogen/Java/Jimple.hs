@@ -77,7 +77,7 @@ expr e = case e of
   E_new rf -> concat ["new ", ref rf]
   E_newArray t i -> concat ["new ", type_ t, "[", value i, "]"]
 
-  E_invoke it (MethodSig cp nm pars res) args ->
+  E_invoke it (MethodSig cp nm pars res _) args ->
     let path1 = if it == I_static then path $ classPath cp else invoke it in
     concat [path1, ".", str nm, "(", intercalate "," (map value args), ")"]
 
@@ -161,7 +161,7 @@ methodToJava (Method sig locals0 idents stmts excs) =
       type_ methodResult, " ", str methodName, "(", params, ") "]
 
     locals1 = filter (\(LocalDecl _ (Local nm)) -> nm `notElem` argNames) locals0
-    argNames = take (length methodParams) $ map (('l':).show) [0..]
+    argNames = take (length methodParams) $ map (('l':).show) ns
     argTypes = map type_ methodParams
     params   = intercalate ", " [
       concat [ts, " ", nm] | (ts, nm) <- zip argTypes argNames]
@@ -170,5 +170,7 @@ methodToJava (Method sig locals0 idents stmts excs) =
     body   = toJava stmts
 
     Java code = join [header, body]
+
+    ns = if F_static `elem` methodAccess then [0..] else [1..]
 
     MethodSig{..} = sig
