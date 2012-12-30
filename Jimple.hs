@@ -110,7 +110,7 @@ byteCodeP = do
              Nothing   -> return ()
              Just code -> parse (ord code) >> go len
 
-    parse code = case trace ("0x" ++ showHex code "") code of
+    parse code = case code of
       -- NOP: needed to maintain correct line count for goto
       0x00 -> append S_nop
 
