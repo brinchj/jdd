@@ -47,12 +47,13 @@ run path method = do
 
   print ls
   print idents
+  print $ methodAccess sig
 
-  putStrLn "\n--\nMethod bytecode:"
+  putStrLn "\n-- Method bytecode:"
   mapM_ print code
   putStrLn "--\n"
 
-  putStrLn "--\nMethod code:"
+  putStrLn "-- Method code:"
   putStrLn $ flatCode $ toJava meth2
   putStrLn "--\n"
 
