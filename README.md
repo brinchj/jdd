@@ -2,7 +2,6 @@ jdd
 ===
 
     jdd > ghci Test
-    *Test> :set -XOverloadedStrings
     *Test> code <- decompileClass "test/HelloWorld.class"
     *Test> putStrLn code
     package test;
