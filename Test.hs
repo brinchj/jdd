@@ -23,38 +23,7 @@ import Control.Applicative
 import qualified Data.ByteString as B
 
 
-list path =
-  Map.keys . CF.classMethods . CF.parseClassFile <$> B.readFile path
-
-phase1 = mapCorrectLabels
-phase2 = mapFix $ mapCleanup . mapInline . mapAppendEmpty
-phase3 = mapFix $ mapSwitch . mapWhile . mapGotoIf . mapElimGoto
-
-run path method = do
-  cf <- CF.parseClassFile <$> B.readFile path
-  print cf
-
-  let (err, meth0) = parseJimple cf method
-      -- Code rewriting
-      transform = phase3 . phase2 . phase1
-      meth1 = transform meth0
-      -- Type local declarations
-      meth2 = simpleTyper meth1
-      -- Unpack
-      Method sig ls idents code excs = meth2
-
-  maybe (return ()) print err
-
-  print ls
-  print idents
-  print $ methodAccess sig
-
-  putStrLn "\n-- Method bytecode:"
-  mapM_ print code
-  putStrLn "--\n"
-
-  putStrLn "-- Method code:"
-  putStrLn $ flatCode $ toJava meth2
-  putStrLn "--\n"
-
-  return meth2
+decompileClass :: FilePath -> IO String
+decompileClass file = do
+  cf <- CF.parseClassFile <$> B.readFile file
+  return $ flatCode $ toJava cf

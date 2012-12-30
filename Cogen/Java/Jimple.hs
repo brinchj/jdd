@@ -8,14 +8,21 @@ module Cogen.Java.Jimple where
 import Prelude hiding (const)
 import Data.List
 
+import System.FilePath (takeDirectory, takeBaseName)
 import qualified Data.ByteString.Char8 as B
+import qualified Data.Map as M
 
 import Control.Monad.Writer (execWriter, tell, when, unless)
 
 import Parser (Desc(..), Class(..))
 import Cogen.Java (join, Java(..), Javable(..), JavaStmt(..))
-import Jimple.Types
 
+import Jimple
+import Jimple.Typing
+import Jimple.Types
+import Jimple.Maps
+
+import qualified Parser as CF
 
 
 -- s1 <- staticField
@@ -176,12 +183,15 @@ instance Javable LocalDecl where
 instance Javable (JimpleMethod Value) where
   toJava = methodToJava
 
+instance Javable CF.ClassFile where
+  toJava = classToJava
+
 
 methodToJava (Method sig locals0 idents stmts excs) =
   Java [JavaBlock methodHead code ""]
   where
     methodHead = modifiers ++ concat [
-      type_ methodResult, " ", str methodName, "(", params, ") "]
+      type_ methodResult, " ", name, "(", params, ") "]
 
     locals1 = filter (\(LocalDecl _ (Local nm)) -> nm `notElem` argNames) locals0
     argNames = take (length methodParams) $ map (('l':).show) ns
@@ -191,6 +201,9 @@ methodToJava (Method sig locals0 idents stmts excs) =
 
     header = toJava locals1
     body   = toJava stmts
+    name   = if str methodName == "<init>" then className else str methodName
+
+    className = takeBaseName $ B.unpack $ classPath methodClass
 
     Java code = join [header, body]
 
@@ -199,3 +212,39 @@ methodToJava (Method sig locals0 idents stmts excs) =
     MethodSig{..} = sig
 
     modifiers = concat $ zipWith (++) (map show methodAccess) $ repeat " "
+
+
+
+phase1 = mapCorrectLabels
+phase2 = mapFix $ mapCleanup . mapInline . mapAppendEmpty
+phase3 = mapFix $ mapSwitch . mapWhile . mapGotoIf . mapElimGoto
+
+classToJava :: CF.ClassFile -> Java
+classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
+                      , emptyLine
+                      , JavaBlock ("class "    ++ clName  ++
+                                   " extends " ++ clSuper ++ " ")
+                                  (inline methods) "" ]
+  where
+    clPackage = map slashToDot $ takeDirectory clPath
+    clName    = takeBaseName clPath
+    clPath    = B.unpack $ classPath $ CF.unClassRef classThis
+    clSuper   = map slashToDot $ B.unpack $ classPath $ CF.unClassRef classSuper
+
+    slashToDot '/' = '.'
+    slashToDot chr = chr
+
+    CF.ClassFile {..} = cl
+
+    methods = join $ Java [emptyLine] :
+              (map jimpleMethod $ M.keys $ CF.classMethods cl)
+    emptyLine = JavaStmt 0 ""
+
+    jimpleMethod name =
+      let (err, meth0) = parseJimple cl name
+          -- Code rewriting
+          transform = phase3 . phase2 . phase1
+          meth1 = transform meth0
+      in
+       -- Type local declarations
+       join $ [toJava $ simpleTyper meth1, Java [emptyLine]]
