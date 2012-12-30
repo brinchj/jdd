@@ -6,10 +6,10 @@ jdd
     *Test> putStrLn code
     package test;
 
-        class HelloWorld extends java.lang.Object {
+    class HelloWorld extends java.lang.Object {
 
         void HelloWorld() {
-             return;
+            return;
         }
 
         public static void main(String[] l0) {
