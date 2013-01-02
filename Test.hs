@@ -71,12 +71,15 @@ testJava path = withTemporaryDirectory "jdd-test" $ \tmpDir -> do
     javaPath = path <.> "java"
 
 
-makeTest name = TestLabel name $ TestCase $ testJava $ "test" </> name
+makeTest name = TestLabel name $ TestCase $ testJava $ "examples" </> name
 
 
 tests = runTestTT $ TestList
         [ makeTest "HelloWorld"
-        , makeTest "JDo"
-        , makeTest "JFor"
-        , makeTest "JForEach"
+        , makeTest "TIf"
+        , makeTest "TDo"
+        , makeTest "TDoWhile"
+        , makeTest "TFor"
+        , makeTest "TForEach"
+        , makeTest "TField"
         ]
