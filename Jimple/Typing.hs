@@ -23,7 +23,7 @@ import qualified Control.Monad.State as ST
 
 import Debug.Trace
 
-type TypeV v = Either Type (Variable v)
+type TypeV v = Either Type (Variable v, Type -> Type)
 
 class TypeableJ a v where
   typeOf :: a -> TypeV v
@@ -49,7 +49,7 @@ instance TypeableJ Constant v where
 
 
 instance TypeableJ (Variable v) v where
-  typeOf = Right
+  typeOf v = Right (v, id)
 
 
 
@@ -71,7 +71,7 @@ instance (TypeableJ v v) => TypeableJ (Expression v) v where
   typeOf (E_instanceOf v _) = Left T_boolean
   typeOf (E_newArray t v) = Left $ T_array 1 t
   typeOf (E_new (R_object c)) = Left $ T_object $ CF.classPath c
-  typeOf (E_newMultiArray t v _) = Left $ T_array undefined t
+  typeOf (E_newMultiArray t v _) = Left $ T_array 0 t
   typeOf (E_invoke _ sig _) = Left $ methodResult sig
 
   -- comparisons
@@ -85,14 +85,14 @@ instance TypeableJ (Ref Value) Value where
   typeOf R_this = Left $ T_object "this"
   typeOf (R_instanceField _ desc) = Left $ J.typeFromBS' $ CF.descType desc
   typeOf (R_staticField   _ desc) = Left $ J.typeFromBS' $ CF.descType desc
-  typeOf (R_array (VLocal v) _) = Right v
+  typeOf (R_array (VLocal v) _) = Right (v, \(T_array _ t) -> t)
   typeOf (R_array (VExpr  e) _) = typeOf e
 
   typeOf s = error $ "TypeableJ ref: " ++ show s
 
 instance TypeableJ Value Value where
   typeOf (VConst c) = typeOf c
-  typeOf (VLocal v) = Right v
+  typeOf (VLocal v) = Right (v, id)
   typeOf (VExpr  e) = typeOf e
 
 
@@ -134,16 +134,20 @@ simpleTyper (meth@(Method _ ls is ms me)) =
       nm2 <- Local <$> findMatch t nms
       modifySnd $ M.insert (Local nm) nm2
 
-    set (Local nm) (Right (VarLocal l)) = do
+    set (Local nm) (Right (VarLocal l, conv)) = do
       mt <- ST.gets $ M.lookup l . fst
       case mt of
         Nothing -> return ()
-        Just t  -> set (Local nm) $ Left t
+        Just t  -> set (Local nm) $ Left $ conv t
 
-    set (Local nm) (Right (VarRef r)) =
+    set (Local nm) (Right (VarRef r, conv)) =
       set (Local nm) $ typeOf r
 
-    set a b = error $ "not prepared for: " ++ show a ++ ", " ++ show b
+    set a b = let err c = error $
+                          "not prepared for: " ++ show a ++ ", " ++ show c
+              in case b of
+                Left c       -> err c
+                Right (c, _) -> err c
 
 
     findMatch t (nm:nms) = do
