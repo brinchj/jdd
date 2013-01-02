@@ -124,10 +124,11 @@ var (VarLocal l) = show l
 
 -- reference
 ref r = case r of
+  R_instanceField v (Desc nm _type) -> concat [value v, ".", str nm]
   R_staticField (Class cp) (Desc nm tp) -> concat [path cp, ".", str nm]
   R_array v i -> concat [value v, "[", value i, "]"]
   R_object cl -> path (classPath cl) ++ "()"  -- TODO: R_object without () ??
-  _ -> error $ "ref: " ++ show r
+  _ -> error $ "Cogen.Java.Jimple, ref: " ++ show r
 
 -- value
 value (VConst c) = const c
@@ -222,9 +223,9 @@ phase3 = mapFix $ mapSwitch . mapWhile . mapGotoIf . mapElimGoto
 classToJava :: CF.ClassFile -> Java
 classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
                       , emptyLine
-                      , JavaBlock ("class "    ++ clName  ++
-                                   " extends " ++ clSuper ++ " ")
-                                  (inline methods) "" ]
+                      , JavaBlock
+                        (concat ["class ", clName, " extends ", clSuper, " "])
+                        (inline body) "" ]
   where
     clPackage = map slashToDot $ takeDirectory clPath
     clName    = takeBaseName clPath
@@ -236,8 +237,21 @@ classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
 
     CF.ClassFile {..} = cl
 
+    body = join [fields, methods]
+
+    fields = join $ Java [emptyLine] :
+             (map field $ M.elems $ CF.classFields cl)
+
+    field (CF.AttrBlock blockFlags name desc _) =
+      let typ = typeFromBS' desc
+          flags = getFlags blockFlags
+      in
+      Java [JavaStmt 0 $ concat ([show flag ++ " " | flag <- flags] ++
+                                 [type_ typ, " ", str name, ";"])]
+
     methods = join $ Java [emptyLine] :
               (map jimpleMethod $ M.keys $ CF.classMethods cl)
+
     emptyLine = JavaStmt 0 ""
 
     jimpleMethod name =

@@ -483,7 +483,10 @@ parseJimple cf method
     name = blockName
     (params, result) = methodTypeFromBS' blockDesc
 
-    accFlags = [ flag | (i, flag) <- flags, blockFlags `testBit` i ]
+    accFlags = getFlags blockFlags
+
+getFlags blockFlags = [ flag | (i, flag) <- flags, blockFlags `testBit` i ]
+  where
     flags = [ ( 0, F_public)
             , ( 1, F_private)
             , ( 2, F_protected)
