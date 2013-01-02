@@ -2,19 +2,37 @@
 
 module Main where
 
--- import Control.Monad
 import System.Environment
--- import Test
+
+import Control.Monad
+import Control.Applicative
 
 import qualified Data.ByteString.Char8 as B
+import qualified Parser as CF
 
+import Cogen             (flatCode)
+import Cogen.Java        (toJava)
+import Cogen.Java.Jimple ()
+
+import Test (tests, makeTest)
+import Test.HUnit (runTestTT, Test(..))
+
+
+usage name = putStrLn $ concat [name, " [-|classfile|--test|--help]" ]
 
 main = do
-  cmd:args <- getArgs
+  name <- getProgName
+  args <- getArgs
+  let (cmd, rest) = if null args then ("", []) else (head args, tail args)
   case cmd of
-    "list" -> print =<< B.readFile a1
-      where [a1] = args
+    "" -> usage name
+    "--help" -> usage name
+    "--test" -> case rest of
+      []    -> void $ tests
+      names -> void $ runTestTT $ TestList $ map makeTest names
 
-    -- "run" -> print (a1, a2)
-    --   where [a1, a2] = args
+    file -> do
+      bytes <- if file == "-" then B.getContents else B.readFile file
+      putStrLn $ flatCode $ toJava $ CF.parseClassFile bytes
+
 
