@@ -84,7 +84,7 @@ expr e = case e of
 
   E_length a -> value a ++ ".length"
 
-  E_new rf -> "new " ++ ref rf
+  E_new rf args -> concat $ ["new ", ref rf, "("] ++ map value args ++ [")"]
   E_newArray t i -> concat ["new ", type_ t, "[", value i, "]"]
 
   E_invoke it (MethodSig cp nm pars res _) args ->
@@ -127,7 +127,7 @@ ref r = case r of
   R_instanceField v (Desc nm _type) -> concat [value v, ".", str nm]
   R_staticField (Class cp) (Desc nm tp) -> concat [path cp, ".", str nm]
   R_array v i -> concat [value v, "[", value i, "]"]
-  R_object cl -> path (classPath cl) ++ "()"  -- TODO: R_object without () ??
+  R_object cl -> path (classPath cl)
   R_this -> "this"
   _ -> error $ "Cogen.Java.Jimple, ref: " ++ show r
 
@@ -192,26 +192,22 @@ instance Javable CF.ClassFile where
 methodToJava (Method sig locals0 idents stmts excs) =
   Java [JavaBlock methodHead code ""]
   where
-    methodHead = modifiers ++ concat [
-      type_ methodResult, " ", name, "(", params, ") "]
+    methodHead = modifiers ++
+                 (if isInit then [] else type_ methodResult ++ " ") ++
+                 concat [name, "(", params, ") "]
 
-    locals1 = defThis ++
-              filter (\(LocalDecl _ (Local nm)) -> nm `notElem` argNames) locals0
+    locals1  = filter (\(LocalDecl _ (Local nm)) -> nm `notElem` argNames) locals0
     argNames = take (length methodParams) $ map (('l':).show) ns
     argTypes = map type_ methodParams
     params   = intercalate ", " [
       concat [ts, " ", nm] | (ts, nm) <- zip argTypes argNames]
 
     header = toJava locals1
-    body   = if isStatic then toJava stmts else toJava $ setThis : stmts
-    name   = if str methodName == "<init>" then className else str methodName
-
-    defThis = if isStatic then []
-              else [LocalDecl (T_object $ classPath methodClass) $ Local "l0"]
-    setThis = (Nothing, S_assign (VarLocal $ Local "l0")
-                        (VLocal $ VarRef R_this))
+    body   = toJava stmts
+    name   = if isInit then className else str methodName
 
     className = takeBaseName $ B.unpack $ classPath methodClass
+    isInit = str methodName == "<init>"
 
     Java code = join [header, body]
 
@@ -225,7 +221,7 @@ methodToJava (Method sig locals0 idents stmts excs) =
 
 
 
-phase1 = mapCorrectLabels
+phase1 = mapCorrectInit . mapCorrectLabels
 phase2 = mapFix $ mapCleanup . mapInline . mapAppendEmpty
 phase3 = mapFix $ mapSwitch . mapWhile . mapGotoIf . mapElimGoto
 

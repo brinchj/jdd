@@ -70,7 +70,7 @@ instance (TypeableJ v v) => TypeableJ (Expression v) v where
   typeOf (E_cast t v) = Left t
   typeOf (E_instanceOf v _) = Left T_boolean
   typeOf (E_newArray t v) = Left $ T_array 1 t
-  typeOf (E_new (R_object c)) = Left $ T_object $ CF.classPath c
+  typeOf (E_new (R_object c) _args) = Left $ T_object $ CF.classPath c
   typeOf (E_newMultiArray t v _) = Left $ T_array 0 t
   typeOf (E_invoke _ sig _) = Left $ methodResult sig
 
@@ -82,7 +82,7 @@ instance (TypeableJ v v) => TypeableJ (Expression v) v where
 
 
 instance TypeableJ (Ref Value) Value where
-  typeOf R_this = Left $ T_object "this"
+  typeOf R_this = Left $ T_object "<this>"
   typeOf (R_instanceField _ desc) = Left $ J.typeFromBS' $ CF.descType desc
   typeOf (R_staticField   _ desc) = Left $ J.typeFromBS' $ CF.descType desc
   typeOf (R_array (VLocal v) _) = Right (v, \(T_array _ t) -> t)
@@ -98,7 +98,7 @@ instance TypeableJ Value Value where
 
 type SimpleTyperST = (M.Map Local Type, M.Map Local Local)
 simpleTyper :: JimpleMethod Value -> JimpleMethod Value
-simpleTyper (meth@(Method _ ls is ms me)) =
+simpleTyper (meth@(Method sig ls is ms me)) =
   meth { methodLocalDecls = ls2
        , methodStmts = zip (map fst ms) ms2
        }
@@ -114,7 +114,7 @@ simpleTyper (meth@(Method _ ls is ms me)) =
 
     go :: Stmt Value -> ST.State SimpleTyperST (Stmt Value)
     go s = do case s of
-                S_assign (VarLocal v) e -> set v $ typeOf e
+                S_assign (VarLocal v) e -> set v $ typeOf' e
                 S_ifElse  _ left right -> mapM_ (go.snd) $ left ++ right
                 S_switch _ _ ls -> mapM_ (go.snd) $ concatMap snd ls
                 S_doWhile _ body _ -> mapM_ (go.snd) body
@@ -141,7 +141,7 @@ simpleTyper (meth@(Method _ ls is ms me)) =
         Just t  -> set (Local nm) $ Left $ conv t
 
     set (Local nm) (Right (VarRef r, conv)) =
-      set (Local nm) $ typeOf r
+      set (Local nm) $ typeOf' r
 
     set a b = let err c = error $
                           "not prepared for: " ++ show a ++ ", " ++ show c
@@ -158,3 +158,7 @@ simpleTyper (meth@(Method _ ls is ms me)) =
         Just t2 | t == t2   -> return nm
                 | otherwise -> findMatch t nms
 
+    typeOf' t = case typeOf t of
+      Left (T_object "<this>") ->
+        Left $ T_object $ CF.classPath $ methodClass sig
+      t1 -> t1

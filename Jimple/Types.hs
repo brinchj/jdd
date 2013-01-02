@@ -142,7 +142,7 @@ data Expression v = E_eq v v -- Conditions
                   | E_cast          Type v
                   | E_newArray      Type v
                   | E_newMultiArray Type v [v] -- TODO: empty dims?
-                  | E_new           (Ref v)
+                  | E_new           (Ref v) [v]
                   | E_invoke (InvokeType v) MethodSignature [v]
                   deriving (Eq, Ord, Functor, F.Foldable)
 
@@ -261,7 +261,7 @@ instance Show v => Show (Expression v) where
   show (E_cast t a) = "(" ++ show t ++ ") " ++ show a
   show (E_instanceOf i r) = show i ++ " instanceOf " ++ show r
   show (E_newArray t i) = "newArray " ++ show t ++ "[" ++ show i ++ "]"
-  show (E_new r) = "new " ++ show r
+  show (E_new r as) = "new " ++ show r ++ show as
   show (E_newMultiArray t i is) = "newMArray " ++ show t ++ "(" ++ show (i, is) ++ ")"
   show (E_invoke t m ims) = concat ["invoke ", show t, " "
                                    , show m, " ", show ims]

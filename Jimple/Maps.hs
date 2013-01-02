@@ -101,7 +101,7 @@ mapAppendEmpty m = m { methodStmts = map go $ methodStmts m }
 
 -- Identify pure values (no side-effects, used for inlining and cleaning)
 pureValue (VExpr (E_invoke _ _ _)) = False
-pureValue (VExpr (E_new r)) = case r of
+pureValue (VExpr (E_new r _args)) = case r of
   R_instanceField _ _ -> True
   R_staticField   _ _ -> True
   _ -> False
@@ -163,7 +163,7 @@ mapCorrectLabels m = m { methodStmts = go $ methodStmts m }
        (s', labels) = W.runWriter $ mapM go' s
 
        f (Just l, s) | l `elem` labels = (Just l,  s)
-                     | otherwise       = (Nothing, s)
+       f (_     , s)                   = (Nothing, s)
 
     go' (Just pos, S_if c next) = tellLabel (S_if c) pos next
     go' (Just pos, S_goto next) = tellLabel S_goto   pos next
@@ -180,6 +180,26 @@ mapCorrectLabels m = m { methodStmts = go $ methodStmts m }
     tellLabel f (Label pos) (Label next) = do
       W.tell [Label $! pos + next]
       return (Just $ Label pos, f $ Label $ pos + next)
+
+
+-- Move argument to init-calls into their respective new call (constructor)
+mapCorrectInit m = m { methodStmts = go $ methodStmts m }
+  where
+    go s = catMaybes $ ST.evalState (mapM goM s) M.empty
+
+    goM stmt@(lbl, s) = case s of
+      S_assign v (VExpr (E_new (R_object cl) [])) -> do
+        ST.modify $ M.insert cl v
+        return $ Nothing
+
+      S_assign _ (VExpr
+                  (E_invoke
+                   (I_special (VLocal v))
+                   (MethodSig cl "<init>" _fs _ts _rt) pars)) -> do
+        realv <- fromMaybe v <$> (ST.gets $ M.lookup cl)
+        return $ Just (lbl, S_assign realv (VExpr (E_new (R_object cl) pars)))
+
+      _ -> return $ Just stmt
 
 
 -- Rewrite Jimple code according to rule

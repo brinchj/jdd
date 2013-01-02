@@ -301,9 +301,8 @@ byteCodeP = do
                  params <- replicateM (length $ methodParams method) popI
                  objRef <- popI
                  v      <- resultVar method
-                 unless (methodName method == "<init>") $ -- init is implicit
-                   append $! S_assign v $ VExpr $
-                             E_invoke (I_special objRef) method params
+                 append $! S_assign v $ VExpr $
+                           E_invoke (I_special objRef) method params
 
       -- INVOKESTATIC: invoke a static method (no object ref)
       0xb8 -> do method <- methodP
@@ -314,7 +313,7 @@ byteCodeP = do
 
       -- NEW: new object ref
       0xbb -> do Just (CF.ClassRef path) <- askCP2
-                 void $ push $! VExpr $! E_new $! R_object path
+                 void $ push $! VExpr $! E_new (R_object path) []
 
       -- NEWARRAY: new array of primitive type
       0xbc -> do tpe   <- fromIntegral <$> u1
@@ -468,8 +467,13 @@ parseJimple cf method
       let MethodSig _ _ _ vs r = methodSigFromBS' blockDesc $
                                  MethodSig (CF.Class "") blockDesc []
       modifyFst $ \m -> m { methodLocalDecls = zipWith decl vs ns }
+      -- Add reference to this from "l0" when method is not static
       unless isStatic $
-        modifyFst $ \m -> m { methodIdentStmts = [IStmt (Local "l0") R_this]}
+        modifyFst $ \m -> m {
+          methodStmts =
+             [(Nothing,
+               S_assign (VarLocal $ Local "l0") (VLocal $ VarRef R_this))]
+          }
 
       runPT byteCodeP () "" code
 
