@@ -27,9 +27,8 @@ main = do
   case cmd of
     "" -> usage name
     "--help" -> usage name
-    "--test" -> case rest of
-      []    -> void $ tests
-      names -> void $ runTestTT $ TestList $ map makeTest names
+    "--test" | null rest -> void $ tests
+             | otherwise -> void $ runTestTT $ TestList $ map makeTest rest
 
     file -> do
       bytes <- if file == "-" then B.getContents else B.readFile file
