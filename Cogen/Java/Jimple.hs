@@ -128,6 +128,7 @@ ref r = case r of
   R_staticField (Class cp) (Desc nm tp) -> concat [path cp, ".", str nm]
   R_array v i -> concat [value v, "[", value i, "]"]
   R_object cl -> path (classPath cl) ++ "()"  -- TODO: R_object without () ??
+  R_this -> "this"
   _ -> error $ "Cogen.Java.Jimple, ref: " ++ show r
 
 -- value
@@ -194,21 +195,29 @@ methodToJava (Method sig locals0 idents stmts excs) =
     methodHead = modifiers ++ concat [
       type_ methodResult, " ", name, "(", params, ") "]
 
-    locals1 = filter (\(LocalDecl _ (Local nm)) -> nm `notElem` argNames) locals0
+    locals1 = defThis ++
+              filter (\(LocalDecl _ (Local nm)) -> nm `notElem` argNames) locals0
     argNames = take (length methodParams) $ map (('l':).show) ns
     argTypes = map type_ methodParams
     params   = intercalate ", " [
       concat [ts, " ", nm] | (ts, nm) <- zip argTypes argNames]
 
     header = toJava locals1
-    body   = toJava stmts
+    body   = if isStatic then toJava stmts else toJava $ setThis : stmts
     name   = if str methodName == "<init>" then className else str methodName
+
+    defThis = if isStatic then []
+              else [LocalDecl (T_object $ classPath methodClass) $ Local "l0"]
+    setThis = (Nothing, S_assign (VarLocal $ Local "l0")
+                        (VLocal $ VarRef R_this))
 
     className = takeBaseName $ B.unpack $ classPath methodClass
 
     Java code = join [header, body]
 
-    ns = if F_static `elem` methodAccess then [0..] else [1..]
+    ns = if isStatic then [0..] else [1..]
+
+    isStatic = F_static `elem` methodAccess
 
     MethodSig{..} = sig
 
