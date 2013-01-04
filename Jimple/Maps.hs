@@ -20,9 +20,7 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-import Data.Char
 import Data.Maybe
-import Data.Word
 
 import Jimple.Types
 import Jimple.Rewrite
@@ -62,30 +60,6 @@ foldS f zero ls = F.foldl' go zero ls
 mapFix f v = fst $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
   where
     l = iterate f v
-
-
--- Replace calls to Woddlecakes.int with decrypted string-constants
-mapDecrypt m = m { methodStmts = map go $ methodStmts m }
-  where
-    go (l, S_assign r (VExpr (E_invoke I_static sig [VConst (C_string x)])))
-      | methodClass  sig == CF.Class "dk/danid/plugins/Woddlecakes" &&
-        methodName   sig == "int" &&
-        methodParams sig == [T_object "java/lang/String"] =
-          (l, S_assign r $ VConst $ C_string $ decrypt x)
-
-    go s = s
-
-
--- Decrypt a Woddlecakes-encrypted string
-decrypt = B.pack . snd . L.mapAccumL go 42 . delay
-  where
-    delay s = B.zip s $ B.drop 4 s
-
-    go prev (k, k4) | isPrint $ chr k4i = (dec,  fromIntegral dec)
-                    | otherwise         = (prev, k4)
-      where
-        (ki, k4i) = (fromIntegral k, fromIntegral k4)
-        dec       = ((prev + ki + k4i) `mod` 95) + 32
 
 
 -- StringBuilder.append("") does nothing
