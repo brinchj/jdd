@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses
            , FlexibleInstances
            , OverloadedStrings
+           , TupleSections
   #-}
 
 module Jimple.Typing where
@@ -99,37 +100,62 @@ instance TypeableJ Value Value where
 type SimpleTyperST = (M.Map Local Type, M.Map Local Local)
 simpleTyper :: JimpleMethod Value -> JimpleMethod Value
 simpleTyper (meth@(Method sig ls is ms me)) =
-  meth { methodLocalDecls = ls2
-       , methodStmts = zip (map fst ms) ms2
+  meth { methodLocalDecls = []
+       , methodStmts = ms2
        }
   where
     ls2 = map (uncurry $ flip LocalDecl) $ M.toList types2
 
     rMap = M.empty
 
-    (ms2, (types2, _)) = ST.runState (mapM (go.snd) ms) (types, rMap)
+    (ms2, (types2, _)) = ST.runState (mapM go ms) (types, rMap)
     types = M.fromList $ map (\(LocalDecl t l) -> (l, t)) ls
 
     db a = traceShow a a
 
-    go :: Stmt Value -> ST.State SimpleTyperST (Stmt Value)
-    go s = do case s of
-                S_assign (VarLocal v) e -> set v $ typeOf' e
-                S_ifElse  _ left right -> mapM_ (go.snd) $ left ++ right
-                S_switch _ _ ls -> mapM_ (go.snd) $ concatMap snd ls
-                S_doWhile _ body _ -> mapM_ (go.snd) body
-                S_tryCatch body cs -> do addExcepts cs
-                                         mapM_ (go.snd) $ body ++ concatMap snd cs
-                _ -> return ()
-              m <- ST.gets snd
-              return $ rename m `fmap` s
+    isolate mv = do
+      st <- ST.get
+      v <- mv
+      ST.put st
+      return v
 
-    addExcepts ((Just exc, _):cs) = set (Local "exc") $
-                                    Left $ T_object "Exception"
+    go :: LabelStmt Value -> ST.State SimpleTyperST (LabelStmt Value)
+    go (lbl, s1) = do
+      let go' = mapM (isolate . go)
+      let def = return s1
+      s2 <- case s1 of
+        S_assign (VarLocal v) e -> do
+          mt0 <- get v
+          flip (flip maybe $ const def) mt0 $ do
+              set v $ typeOf' e
+              mt1 <- get v
+              return $ flip (maybe s1) mt1 $ \t1 -> S_declare t1 (VarLocal v) e
+
+        S_ifElse c left right -> liftM2 (S_ifElse c) (go' left) (go' right)
+        S_switch _ _ ls       -> (mapM_ go $ concatMap snd ls) >> def
+        S_doWhile n body v    -> liftM (flip (S_doWhile n) v) (go' body)
+        S_tryCatch body cs0   -> liftM2 S_tryCatch (go' body) $ handleExcepts cs0
+
+        _ -> def
+
+      m <- ST.gets snd
+      return (lbl, rename m `fmap` s2)
+
+    handleExcepts cs = flip mapM cs $ \c -> isolate $ do
+      let go' = mapM go
+      case c of
+        (Just exc, body) -> do
+          set (Local "exc") $ Left $ T_object $ CF.classPath exc
+          (Just exc,) <$> go' body
+        (Nothing, body) ->
+          (Nothing,) <$> go' body
+
 
     rename m (VLocal (VarLocal l)) = VLocal $ VarLocal $
                                      fromMaybe l $ M.lookup l m
     rename _ v = v
+
+    get l = M.lookup l <$> ST.gets fst
 
     set :: Local -> TypeV Value -> ST.State SimpleTyperST ()
     set (Local "_") _ = return ()
