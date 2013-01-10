@@ -104,20 +104,12 @@ simpleTyper (meth@(Method sig ls is ms me)) =
        , methodStmts = ms2
        }
   where
-    ls2 = map (uncurry $ flip LocalDecl) $ M.toList types2
-
-    rMap = M.empty
-
-    (ms2, (types2, _)) = ST.runState (mapM go ms) (types, rMap)
+    -- State is types map and renaming map
+    ms2 = ST.evalState (mapM go ms) (types, M.empty)
     types = M.fromList $ map (\(LocalDecl t l) -> (l, t)) ls
 
-    db a = traceShow a a
-
-    isolate mv = do
-      st <- ST.get
-      v <- mv
-      ST.put st
-      return v
+    -- Run an action while preserving the state
+    isolate mv = ST.evalState mv <$> ST.get
 
     go :: LabelStmt Value -> ST.State SimpleTyperST (LabelStmt Value)
     go (lbl, s1) = do
@@ -141,10 +133,10 @@ simpleTyper (meth@(Method sig ls is ms me)) =
       m <- ST.gets snd
       return (lbl, rename m `fmap` s2)
 
-    handleSwitch cs = flip mapM cs $ \(c, body) -> do
+    handleSwitch cs = forM cs $ \(c, body) ->
       (c,) <$> mapM go body
 
-    handleExcepts cs = flip mapM cs $ \c -> isolate $ do
+    handleExcepts cs = forM cs $ \c -> isolate $ do
       let go' = mapM go
       case c of
         (Just exc, body) -> do

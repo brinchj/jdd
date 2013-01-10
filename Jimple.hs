@@ -15,8 +15,9 @@ import Data.Ord
 
 import Numeric
 
-import qualified Data.Map  as M
-import qualified Data.List as L
+import qualified Data.Foldable as F
+import qualified Data.Map      as M
+import qualified Data.List     as L
 
 import Text.Parsec.ByteString
 import Text.Parsec.Char
@@ -87,7 +88,7 @@ methodSigFromBS' bs meth = either (error $ "methodSig: " ++ show bs) id $
                      methodSigFromBS bs meth
 
 
-bytesToUnsigned :: [Char] -> Integer
+bytesToUnsigned :: String -> Integer
 bytesToUnsigned = L.foldl' (\n b -> n * 256 + fromIntegral (ord b)) 0
 
 
@@ -118,12 +119,12 @@ byteCodeP excTable codeLength = do
     codeM = do
       pos <- ST.gets $ thisPos . snd
       modifySnd $ \j -> j { prevPos = pos }
-      let isTry = isJust $ fromStart excTable pos
-          mexc  = fromTarget excTable pos
-      when isTry $ do
-        append $ S_try pos
-      when (isJust mexc) $ do
-        catch $ fromJust mexc
+
+      -- Handle try
+      F.forM_ (fromStart  excTable pos) $ const $ append $ S_try pos
+      -- Handle catch
+      F.forM_ (fromTarget excTable pos) catch
+
       unless (pos >= codeLength) $ do
         mcode <- optionMaybe nextByte
         when (isJust mcode) $ do
@@ -134,7 +135,7 @@ byteCodeP excTable codeLength = do
       mx <- if eid == 0 then return Nothing else getCP eid
       let x = (\(CF.ClassRef x) -> x) `fmap` mx
       append $ S_catch start x
-      void $ pushL $! VarLocal $! Local $ "exc"
+      void $ pushL $! VarLocal $! Local "exc"
 
 
     parse code = case code of
