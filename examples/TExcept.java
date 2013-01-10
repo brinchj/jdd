@@ -6,6 +6,8 @@ class TExcept {
         System.out.println("before try");
         try {
             System.out.println("inside try");
+        } catch (NullPointerException e) {
+            System.out.println("inside catch");
         } catch (Exception e) {
             System.out.println("inside catch");
         } finally {

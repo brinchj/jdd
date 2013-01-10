@@ -125,7 +125,7 @@ simpleTyper (meth@(Method sig ls is ms me)) =
               return $ rename m `fmap` s
 
     addExcepts ((Just exc, _):cs) = set (Local "exc") $
-                                    Left $ T_object $ CF.classPath exc
+                                    Left $ T_object "Exception"
 
     rename m (VLocal (VarLocal l)) = VLocal $ VarLocal $
                                      fromMaybe l $ M.lookup l m
