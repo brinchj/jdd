@@ -147,6 +147,8 @@ stmtToJava (lbl, s) = case s of
   S_assign v val | var v == "_" -> line $ value val ++ " /* empty assign */ "
   S_assign v val -> line $ var v ++ " = " ++ value val
 
+  S_declare t v val -> line $ concat [type_ t, " ", var v, " = ", value val]
+
   S_return v   -> line $ concat ["return (", value v, ")"]
   S_returnVoid -> line "return"
 

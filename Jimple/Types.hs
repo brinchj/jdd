@@ -42,7 +42,8 @@ data ExceptEntry =
 
 
 data Stmt v = S_breakpoint
-            | S_assign (Variable v) v
+            | S_assign       (Variable v) v
+            | S_declare Type (Variable v) v
             | S_enterMonitor v
             | S_exitMonitor  v
             | S_goto Label
@@ -189,7 +190,8 @@ data Type = T_byte | T_char  | T_int | T_boolean | T_short
 instance Show v => Show (Stmt v) where
   show (S_breakpoint)    = "breakpoint"
 
-  show (S_assign x a)    = show x ++ " <- " ++ show a
+  show (S_assign    x a) = show x ++ " <- " ++ show a
+  show (S_declare t x a) = concat [show t, " ", show x, " <- ", show a]
 
   show (S_enterMonitor i) = "enterMonitor " ++ show i
   show (S_exitMonitor  i) = "exitMonitor " ++ show i
