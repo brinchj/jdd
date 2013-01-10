@@ -188,6 +188,8 @@ stmtToJava (lbl, s) = case s of
       JavaBlock "try " (inline bd) ""
       ] ++ catches ++ finally
 
+  S_throw exc -> line $ "throw " ++ value exc
+
   -- foo -> error $ "stmtToJava: Unknown statement " ++ show foo
   foo -> Java [JavaStmt 0 $ "// unknown statement " ++ show foo]
 
