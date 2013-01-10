@@ -30,6 +30,17 @@ data LocalDecl = LocalDecl Type Local
 data Except v = Except (Ref v) Label Label Label
             deriving (Eq, Ord, Show, Functor, F.Foldable)
 
+data ExceptTable = ExceptTable [ExceptEntry]
+                 deriving (Eq, Ord, Show)
+data ExceptEntry =
+  ExceptEntry { exceptFrom   :: Integer
+              , exceptTo     :: Integer
+              , exceptTarget :: Integer
+              , exceptID     :: Integer
+              }
+  deriving (Eq, Ord, Show)
+
+
 data Stmt v = S_breakpoint
             | S_assign (Variable v) v
             | S_enterMonitor v

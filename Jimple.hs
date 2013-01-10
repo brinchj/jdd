@@ -32,6 +32,7 @@ import qualified Parser as CF
 
 import Util
 import Jimple.Types
+import Jimple.Exceptions
 
 
 typeP :: Parser Type
@@ -86,6 +87,22 @@ methodSigFromBS' bs meth = either (error $ "methodSig: " ++ show bs) id $
                      methodSigFromBS bs meth
 
 
+bytesToUnsigned :: [Char] -> Integer
+bytesToUnsigned = L.foldl' (\n b -> n * 256 + fromIntegral (ord b)) 0
+
+
+exceptionTableM = do
+  size <- u2
+  entries <- replicateM (fromIntegral size) entry
+  return $ ExceptTable entries
+  where
+    u2 = bytesToUnsigned <$> count 2 anyToken
+    entry = do
+      (from, to) <- liftM2 (,) u2 u2
+      target <- u2
+      eid <- u2
+      return $ ExceptEntry from to target eid
+
 
 data JimpleST = JimpleST { jimpleFree  :: [Variable Value]
                          , jimpleStack :: [Variable Value]
@@ -93,10 +110,8 @@ data JimpleST = JimpleST { jimpleFree  :: [Variable Value]
                          , prevPos     :: Integer
                          }
 
-byteCodeP = do
-  maxStack <- u2
-  maxLocals <- u2
-  codeLength <- u4
+byteCodeP excTable codeLength = do
+  error $ show excTable
   ST.modify $ \(m, j) -> (m, j { thisPos = 0, prevPos = 0 })
   go codeLength
 
@@ -340,7 +355,7 @@ byteCodeP = do
       _ | code `elem` [0xcb..0xfd] -> return ()
 
       -- NOT IMPLEMENTED: my head just exploded
-      _ -> fail $ "Unknown code: 0x" ++ showHex code ""
+      _ -> error $ "Unknown code: 0x" ++ showHex code ""
 
 
     getLocal idx = VarLocal $! Local $! 'l' : show idx
@@ -385,12 +400,10 @@ byteCodeP = do
     u1 = (fromIntegral . ord) <$> nextByte
 
     -- read 2-byte int
-    u2 = do (a, b) <- liftM2 (,) u1 u1
-            return $! a * 2^8 + b
+    u2 = bytesToUnsigned <$> count 2 nextByte
 
     -- read 4-byte int
-    u4 = do (a, b) <- liftM2 (,) u2 u2
-            return $! a * 2^16 + b
+    u4 = bytesToUnsigned <$> count 4 nextByte
 
     -- read 2-byte signed int
     s2 = CF.makeSigned 16 <$> u2
@@ -460,7 +473,7 @@ parseJimple cf method
     go (Right _,  (meth, jst)) = (Nothing,  meth)
 
     CF.AttrBlock{..} = CF.classMethods cf M.! method
-    code = blockAttrs M.! "Code"
+    bytes = blockAttrs M.! "Code"
     hasCode = "Code" `M.member` blockAttrs
 
     goM = do
@@ -475,7 +488,23 @@ parseJimple cf method
                S_assign (VarLocal $ Local "l0") (VLocal $ VarRef R_this))]
           }
 
-      runPT byteCodeP () "" code
+      let dropSize = 4  -- maxStack and maxLocals
+
+      -- Extract codeLength and then codeBytes
+      let codeLengthM = do
+            _ <- count dropSize anyToken  -- maxStack, maxLocals
+            bytesToUnsigned <$> count 4 anyToken
+      let codeLength = either (error.show) id $
+                       runP codeLengthM () "codeSize" bytes
+      let (codeBytes, rest) = B.splitAt (fromIntegral codeLength) $
+                              B.drop (dropSize + 4) bytes
+
+      -- Extract exception table
+      let excTable = cleanupExcTable <$>
+                     runP exceptionTableM () "exceptionTable" rest
+
+      -- code <- runP (count codeSize anyChar)
+      runPT (byteCodeP excTable codeLength) () "" codeBytes
 
     decl t n = LocalDecl t $ Local $ 'l' : show n
 
