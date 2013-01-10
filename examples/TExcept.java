@@ -17,11 +17,8 @@ class TExcept {
     }
 
     public static void main(String[] args) {
-	try {
-            new TExcept();
-        } catch (Exception e) {
-            System.out.println("inside main catch");
-        }
+        System.out.println("main");
+	new TExcept();
         System.out.println("done");
     }
 
