@@ -132,7 +132,7 @@ simpleTyper (meth@(Method sig ls is ms me)) =
               return $ flip (maybe s1) mt1 $ \t1 -> S_declare t1 (VarLocal v) e
 
         S_ifElse c left right -> liftM2 (S_ifElse c) (go' left) (go' right)
-        S_switch _ _ ls       -> (mapM_ go $ concatMap snd ls) >> def
+        S_switch n e ls       -> liftM (S_switch n e) $ handleSwitch ls
         S_doWhile n body v    -> liftM (flip (S_doWhile n) v) (go' body)
         S_tryCatch body cs0   -> liftM2 S_tryCatch (go' body) $ handleExcepts cs0
 
@@ -140,6 +140,9 @@ simpleTyper (meth@(Method sig ls is ms me)) =
 
       m <- ST.gets snd
       return (lbl, rename m `fmap` s2)
+
+    handleSwitch cs = flip mapM cs $ \(c, body) -> do
+      (c,) <$> mapM go body
 
     handleExcepts cs = flip mapM cs $ \c -> isolate $ do
       let go' = mapM go
