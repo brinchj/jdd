@@ -1,5 +1,6 @@
 module Jimple.Exceptions where
 
+import Data.Maybe
 import Data.Ord
 
 import qualified Data.List as L
@@ -16,6 +17,16 @@ cleanupExcTable (ExceptTable et0) = ExceptTable et1
     eOrder (ExceptEntry from to targ id) = (from, negate (to - from))
 
     -- Remove compiler-generated catch-handlers
+    go []     = []
     go (e:es) = e : case e of
       ExceptEntry _ _ targ 0 -> filter ((targ/=).exceptTarget) es
       _                      -> go es
+
+
+fromStart :: ExceptTable -> Integer -> Maybe ExceptEntry
+fromStart (ExceptTable et) start = listToMaybe $
+                                   filter ((start==).exceptFrom) et
+
+fromTarget :: ExceptTable -> Integer -> Maybe ExceptEntry
+fromTarget (ExceptTable et) targ = listToMaybe $
+                                   filter ((targ==).exceptTarget) et

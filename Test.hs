@@ -83,4 +83,5 @@ tests = runTestTT $ TestList $ map makeTest
         , "TForEach"
         , "TField"
         , "TSwitch"
+        , "TExcept"
         ]

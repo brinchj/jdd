@@ -111,19 +111,31 @@ data JimpleST = JimpleST { jimpleFree  :: [Variable Value]
                          }
 
 byteCodeP excTable codeLength = do
-  error $ show excTable
   ST.modify $ \(m, j) -> (m, j { thisPos = 0, prevPos = 0 })
-  go codeLength
+  codeM
 
   where
-    go len = do
+    codeM = do
       pos <- ST.gets $ thisPos . snd
       modifySnd $ \j -> j { prevPos = pos }
-      unless (pos >= len) $
-        do mcode <- optionMaybe nextByte
-           case mcode of
-             Nothing   -> return ()
-             Just code -> parse (ord code) >> go len
+      let isTry = isJust $ fromStart excTable pos
+          mexc  = fromTarget excTable pos
+      when isTry $ do
+        append $ S_try pos
+      when (isJust mexc) $ do
+        catch $ fromJust mexc
+      unless (pos >= codeLength) $ do
+        mcode <- optionMaybe nextByte
+        when (isJust mcode) $ do
+          parse $ ord $ fromJust mcode
+          codeM
+
+    catch (ExceptEntry start _ _ eid) = do
+      mx <- if eid == 0 then return Nothing else getCP eid
+      let x = (\(CF.ClassRef x) -> x) `fmap` mx
+      append $ S_catch start x
+      void $ pushL $! VarLocal $! Local $ "exc"
+
 
     parse code = case code of
       -- NOP: needed to maintain correct line count for goto
@@ -326,6 +338,10 @@ byteCodeP excTable codeLength = do
                  append $! S_assign v $ VExpr $
                            E_invoke I_static method params
 
+      -- ATHROW: throw an exception
+      0xbf -> do v <- popI
+                 append $ S_throw v
+
       -- NEW: new object ref
       0xbb -> do Just (CF.ClassRef path) <- askCP2
                  void $ push $! VExpr $! E_new (R_object path) []
@@ -415,6 +431,7 @@ byteCodeP excTable codeLength = do
     label2 = Label <$> s2
 
     -- retrieve an element from the constant pool
+    getCP u = M.lookup u <$> R.asks CF.classConstants
     askCP u = liftM2 M.lookup u $ R.asks CF.classConstants
     askCP1 = askCP u1
     askCP2 = askCP u2
@@ -500,7 +517,8 @@ parseJimple cf method
                               B.drop (dropSize + 4) bytes
 
       -- Extract exception table
-      let excTable = cleanupExcTable <$>
+      let excTable = cleanupExcTable $
+                     either (error.show) id $
                      runP exceptionTableM () "exceptionTable" rest
 
       -- code <- runP (count codeSize anyChar)

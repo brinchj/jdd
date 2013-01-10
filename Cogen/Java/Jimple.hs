@@ -175,7 +175,21 @@ stmtToJava (lbl, s) = case s of
       JavaBlock (concat [nm, ": switch(", value v, ") "]) (inline $ cases ++ def) ""
     ]
 
-  foo -> error $ "stmtToJava: Unknown statement " ++ show foo
+  S_tryCatch bd cs ->
+    -- Regular catch
+    let catches = [ JavaBlock
+                    (concat ["catch (", path $ classPath e, " exc) "])
+                    (inline stmts) ""
+                  | (Just e, stmts) <- cs ] in
+    -- Finally clause
+    let finally = [ JavaBlock "finally " (inline stmts) ""
+                  | (Nothing, stmts) <- cs, not $ null stmts ] in
+    Java $ [
+      JavaBlock "try " (inline bd) ""
+      ] ++ catches ++ finally
+
+  -- foo -> error $ "stmtToJava: Unknown statement " ++ show foo
+  foo -> Java [JavaStmt 0 $ "// unknown statement " ++ show foo]
 
 
 instance Javable LocalDecl where
@@ -196,7 +210,7 @@ methodToJava (Method sig locals0 idents stmts excs) =
                  (if isInit then [] else type_ methodResult ++ " ") ++
                  concat [name, "(", params, ") "]
 
-    locals1  = filter (\(LocalDecl _ (Local nm)) -> nm `notElem` argNames) locals0
+    locals1  = filter (\(LocalDecl _ (Local nm)) -> nm `notElem` ("exc":argNames)) locals0
     argNames = take (length methodParams) $ map (('l':).show) ns
     argTypes = map type_ methodParams
     params   = intercalate ", " [
@@ -223,7 +237,7 @@ methodToJava (Method sig locals0 idents stmts excs) =
 
 phase1 = mapCorrectInit . mapCorrectLabels
 phase2 = mapFix $ mapCleanup . mapInline . mapAppendEmpty
-phase3 = mapFix $ mapSwitch . mapWhile . mapGotoIf . mapElimGoto
+phase3 = mapFix $ mapTryCatch . mapSwitch . mapWhile . mapGotoIf . mapElimGoto
 
 classToJava :: CF.ClassFile -> Java
 classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"

@@ -118,9 +118,14 @@ simpleTyper (meth@(Method sig ls is ms me)) =
                 S_ifElse  _ left right -> mapM_ (go.snd) $ left ++ right
                 S_switch _ _ ls -> mapM_ (go.snd) $ concatMap snd ls
                 S_doWhile _ body _ -> mapM_ (go.snd) body
+                S_tryCatch body cs -> do addExcepts cs
+                                         mapM_ (go.snd) $ body ++ concatMap snd cs
                 _ -> return ()
               m <- ST.gets snd
               return $ rename m `fmap` s
+
+    addExcepts ((Just exc, _):cs) = set (Local "exc") $
+                                    Left $ T_object $ CF.classPath exc
 
     rename m (VLocal (VarLocal l)) = VLocal $ VarLocal $
                                      fromMaybe l $ M.lookup l m

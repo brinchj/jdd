@@ -365,3 +365,57 @@ mapSwitch = mapRewrite $ do
       let body' = body ++ if s == S_nop then [] else [stmt]
       if | lbl0 /= lbl -> ((body++).(stmt:)) <$> upTo lbl
          | otherwise   -> return body'
+
+
+mapTryCatch = mapRewrite $ do
+  start <- sourceLine <$> getPosition
+  (mlbl1, S_try sid) <- anyStmt
+  body1 <- many $ satisfy $ not . isCatch
+  let (_, S_goto lblEnd) = last body1
+      body2              = init body1
+
+  (catches, stmtEnd) <- catchAll sid lblEnd
+
+  stop <- sourceLine <$> getPosition
+  let size = stop - start
+
+  return ( size
+         , (mlbl1, uncurry S_tryCatch $ fixFinally body2 catches):[stmtEnd] )
+
+  where
+    isCatch (_, S_catch _ _) = True
+    isCatch _                = False
+
+    catchAll sid lblEnd = do
+      next <- catchNext sid lblEnd
+      case next of
+        Left  end   -> return ([], end)
+        Right group -> do
+          (rest, end) <- catchAll sid lblEnd
+          return $ (group:rest, end)
+
+    catchNext sid lblEnd = do
+      stmt <- anyStmt
+      case stmt of
+        (Nothing, S_catch sid' mexc) -> do
+          when (sid' /= sid) $ fail "try and catch doesn't match"
+          body <- many $ satisfy $ catchStmt lblEnd
+          return $ Right (mexc, body)
+        (Just lbl, _) | lbl == lblEnd ->
+          return $ Left stmt
+
+    catchStmt lblEnd (_   , S_catch _ _) = False
+    catchStmt lblEnd (mlbl, _          ) = mlbl /= Just lblEnd
+
+    fixFinally body1 cs0 = case (last cs0, init cs0) of
+      -- No finally clause
+      ((Just exc, _), _) -> (body1, cs0)
+      -- Finally clause! Fix it!
+      ((Nothing, finBody1), cs1) ->
+        let finBody2 = drop 1 $ init finBody1
+            finSize  = length finBody2
+            delFin   = \bd -> take (length bd - finSize) bd
+            body2    = delFin body1
+            cs2      = [ (exc, init $ delFin bd) | (exc, bd) <- cs1 ]
+        in
+        (body2, cs2 ++ [(Nothing, finBody2)])
