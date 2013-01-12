@@ -290,13 +290,13 @@ byteCodeP excTable codeLength = do
         append $! S_lookupSwitch v defaultByte $ L.sortBy (comparing snd) pairs
 
       -- IRETURN: return int value from stack
-      0xac -> append =<< S_return . VLocal <$> pop
+      0xac -> append =<< S_return . Just . VLocal <$> pop
 
       -- ARETURN: return object ref from stack
-      0xb0 -> append =<< S_return . VLocal <$> pop
+      0xb0 -> append =<< S_return . Just . VLocal <$> pop
 
       -- RETURN: return void
-      0xb1 -> append S_returnVoid
+      0xb1 -> append $ S_return Nothing
 
       -- GETSTATIC: get static field
       0xb2 -> do

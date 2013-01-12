@@ -50,9 +50,7 @@ data Stmt v = S_breakpoint
             | S_if (Expression v) Label   -- Only condition expressions are allowed
             | S_lookupSwitch v Label [(Integer, Label)]
             | S_nop
-            | S_ret Local
-            | S_return v
-            | S_returnVoid
+            | S_return (Maybe v)
             | S_tableSwitch v Label [(Integer, Label)]
             | S_throw v
             -- Below are statements for transitioning from Jimple to Java
@@ -212,9 +210,7 @@ instance Show v => Show (Stmt v) where
 
   show (S_nop)           = "nop"
 
-  show (S_ret v)         = "return (" ++ show v ++ ")"
-  show (S_return i)      = "return (" ++ show i ++ ")"
-  show (S_returnVoid)    = "return"
+  show (S_return mv) = "return (" ++ maybe "" show mv ++ ")"
 
   show (S_tableSwitch i lbl ls) = "tswitch" ++ show i ++ " " ++ show lbl ++ " "
                                   ++ show ls

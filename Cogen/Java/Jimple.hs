@@ -149,8 +149,7 @@ stmtToJava (lbl, s) = case s of
 
   S_declare t v val -> line $ concat [type_ t, " ", var v, " = ", value val]
 
-  S_return v   -> line $ concat ["return (", value v, ")"]
-  S_returnVoid -> line "return"
+  S_return mv -> line $ concat ["return ", maybe "" value mv]
 
   S_doWhile nm body v -> Java [
     JavaBlock (nm ++ ": do ") (inline body) (concat [" while (", value v, ");"])]
