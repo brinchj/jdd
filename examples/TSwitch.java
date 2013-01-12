@@ -17,11 +17,13 @@ class TSwitch {
         int i = 0;
         switch(n) {
         case 42:
+            int j = 1;
             if(i < 12) {
               i = 42;
             }
             break;
         case 21:
+            j = 5;
             i = 21;
             break;
         }
