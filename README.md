@@ -1,11 +1,12 @@
 jdd
 ===
 
+    jdd > ghc --make Main
+
     jdd > ./Main --test
     Cases: 9  Tried: 9  Errors: 0  Failures: 0
     
     jdd > javac examples/HelloWorld.java
-    jdd > ghc --make Main
     jdd > ./Main examples/HelloWorld.class
     package examples;
 
