@@ -8,5 +8,7 @@ cabal-dev
 *.chs.h
 .virthualenv
 
+*.class
+
 *.#*
 #*#
