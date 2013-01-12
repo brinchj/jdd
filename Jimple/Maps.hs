@@ -25,7 +25,7 @@ import Data.Maybe
 import Jimple.Types
 import Jimple.Rewrite
 
-import Text.Parsec     (getPosition)
+import Text.Parsec     (getPosition, optionMaybe)
 import Text.Parsec.Pos (sourceLine)
 
 
@@ -367,45 +367,64 @@ mapSwitch = mapRewrite $ do
          | otherwise   -> return body'
 
 
+data StmtR = SNothing
+           | SInclude (Stmt Value)
+           | SExclude (Stmt Value)
+
 mapTryCatch = mapRewrite $ do
   start <- sourceLine <$> getPosition
   (mlbl1, S_try sid) <- anyStmt
   body1 <- many $ satisfy $ not . isCatch
-  let (_, S_goto lblEnd) = last body1
-      body2              = init body1
 
-  (catches, stmtEnd) <- catchAll sid lblEnd
+  let mLblEnd = case last body1 of
+        (_, S_goto lbl) -> Just lbl
+        _               -> Nothing
+
+  (catches, stmtEnd) <- catchAll sid mLblEnd
 
   stop <- sourceLine <$> getPosition
   let size = stop - start
 
   return ( size
-         , (mlbl1, uncurry S_tryCatch $ fixFinally body2 catches):[stmtEnd] )
+         , (mlbl1, uncurry S_tryCatch $ fixFinally body1 catches):[stmtEnd] )
 
   where
     isCatch (_, S_catch _ _) = True
     isCatch _                = False
 
-    catchAll sid lblEnd = do
-      next <- catchNext sid lblEnd
-      case next of
-        Left  end   -> return ([], end)
-        Right group -> do
-          (rest, end) <- catchAll sid lblEnd
-          return $ (group:rest, end)
+    catchAll sid mLblEnd = goM
+      where
+        goM = do
+          next <- catchNext sid mLblEnd
+          case next of
+            Left  end   -> return ([], end)
+            Right group -> do
+              (rest, end) <- goM
+              return $ (group:rest, end)
 
-    catchNext sid lblEnd = do
+    catchNext sid mLblEnd = do
       stmt <- anyStmt
       case stmt of
         (Nothing, S_catch sid' mexc) -> do
           when (sid' /= sid) $ fail "try and catch doesn't match"
-          body <- many $ satisfy $ catchStmt lblEnd
+          body <- readBody mLblEnd
           return $ Right (mexc, body)
-        (Just lbl, _) | lbl == lblEnd ->
+        (lbl, _) | isJust mLblEnd && lbl == mLblEnd ->
           return $ Left stmt
+        stmt -> return $ Left stmt
 
-    catchStmt lblEnd (_   , S_catch _ _) = False
-    catchStmt lblEnd (mlbl, _          ) = mlbl /= Just lblEnd
+    readBody mLblEnd = do
+      ms <- optionMaybe $ satisfy $ notEndStmt mLblEnd
+      let stmt = maybe (return []) (\s -> return [s]) ms
+      case ms of
+        Nothing                    -> stmt
+        (Just (_,   S_return _  )) -> stmt
+        (Just (_,   S_throw  _  )) -> stmt
+        _                          -> liftM2 (++) stmt $ readBody mLblEnd
+
+    notEndStmt mLblEnd (_, S_catch _ _)           = False
+    notEndStmt mLblEnd (mlbl, _) | isJust mLblEnd = mlbl /= mLblEnd
+    notEndStmt _       _                          = True
 
     fixFinally body1 cs0 = case (last cs0, init cs0) of
       -- No finally clause
@@ -413,9 +432,18 @@ mapTryCatch = mapRewrite $ do
       -- Finally clause! Fix it!
       ((Nothing, finBody1), cs1) ->
         let finBody2 = drop 1 $ init finBody1
-            finSize  = length finBody2
-            delFin   = \bd -> take (length bd - finSize) bd
-            body2    = delFin body1
-            cs2      = [ (exc, init $ delFin bd) | (exc, bd) <- cs1 ]
+            delFin   = delFinally finBody2
+            cs2      = [ (exc, delFin bd) | (exc, bd) <- cs1 ]
         in
-        (body2, cs2 ++ [(Nothing, finBody2)])
+        (delFin body1, cs2 ++ [(Nothing, finBody2)])
+        where
+          delFinally fin body | useLast   = prefix ++ [last body]
+                              | otherwise = prefix
+            where
+              prefix  = init $ take (length body - length fin) body
+              bodyLen = length body
+              finLen  = length fin
+              useLast = case last body of
+                (_, S_return _) -> True
+                (_, S_throw  _) -> True
+                (_, _         ) -> False

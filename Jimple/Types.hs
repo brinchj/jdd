@@ -61,8 +61,8 @@ data Stmt v = S_breakpoint
             | S_continue String
             | S_switch   String v [(Maybe Integer, [LabelStmt v])]
             -- Low-level exception hints, catch (finally is 'S_catch Nothing')
-            | S_try      Integer
-            | S_catch    Integer (Maybe CF.Class)
+            | S_try      (Integer, Integer)
+            | S_catch    (Integer, Integer) (Maybe CF.Class)
             | S_tryCatch [LabelStmt v] [(Maybe CF.Class, [LabelStmt v])]
             deriving (Eq, Ord, Functor, F.Foldable)
 

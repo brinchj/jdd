@@ -19,13 +19,13 @@ cleanupExcTable (ExceptTable et0) = ExceptTable et1
     -- Remove compiler-generated catch-handlers
     go []     = []
     go (e:es) = e : case e of
-      ExceptEntry _ _ targ 0 -> filter ((targ/=).exceptTarget) es
+      ExceptEntry _ _ targ 0 -> go $ filter ((targ/=).exceptTarget) es
       _                      -> go es
 
 
-fromStart :: ExceptTable -> Integer -> Maybe ExceptEntry
-fromStart (ExceptTable et) start = listToMaybe $
-                                   filter ((start==).exceptFrom) et
+fromStart :: ExceptTable -> Integer -> [ExceptEntry]
+fromStart (ExceptTable et) start = M.elems $ M.fromList [
+  ((exceptFrom e, -1 * exceptTo e), e) | e <- et, exceptFrom e == start ]
 
 fromTarget :: ExceptTable -> Integer -> Maybe ExceptEntry
 fromTarget (ExceptTable et) targ = listToMaybe $
