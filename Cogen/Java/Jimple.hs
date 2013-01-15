@@ -80,7 +80,9 @@ expr e = case e of
   E_add a b -> op "+" a b
   E_sub a b -> op "-" a b
   E_mul a b -> op "*" a b
-  E_div a b -> op "*" a b
+  E_div a b -> op "/" a b
+
+  E_rem a b -> op "%" a b
 
   E_length a -> value a ++ ".length"
 
@@ -94,7 +96,7 @@ expr e = case e of
     else
       concat [path1, ".", str nm, "(", intercalate "," (map value args), ")"]
 
-  _ -> error $ "expr: " ++ show e
+  _ -> error $ "Cogen.Java.Jimple.expr: " ++ show e
 
   where
     op f a b = concat [value a, " ", f, " ", value b]
