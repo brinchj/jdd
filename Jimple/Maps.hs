@@ -1,9 +1,12 @@
 {-# LANGUAGE OverloadedStrings
            , ScopedTypeVariables
            , MultiWayIf
+           , TupleSections
   #-}
 
 module Jimple.Maps where
+
+import Debug.Trace
 
 import qualified Parser as CF
 
@@ -21,6 +24,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 
 import Data.Maybe
+import Data.Either
 
 import Jimple.Types
 import Jimple.Rewrite
@@ -213,12 +217,10 @@ mapElimGoto = mapRewrite $ do
   body3Top@(Just lbl3', _) <- label
   guard $ lbl3 == lbl3'
 
-  -- compute line size of parsed statements
-  let size = 5 + length (body1 ++ body2)
   -- rearrange blocks without gotos
   let body = (body2Top:body2) ++ (body1Top:body1)
 
-  return (size, body)
+  return body
 
 
 -- Try to clean up if-statements:
@@ -233,22 +235,21 @@ mapGotoIf = mapRewrite $ do
   (ifLbl, S_if cond lbl1) <- satisfy if_
   body1 <- many jumpless
   next <- anyStmt
-  let sizeIf = 1 + length body1
   case next of
-    (Just lbl1', _) | lbl1 == lbl1' ->
+    (Just lbl1', stmt) | lbl1 == lbl1' ->
       -- if with no else
-      return (sizeIf, [(ifLbl, S_ifElse cond [] body1)])
+      return [(ifLbl, S_ifElse cond [] body1), (Nothing, stmt)]
     (_, S_goto lbl2) -> do
       -- if with else part: if cond 1 ... goto 2, 1: ... 2:
       body2Top@(Just lbl1', _) <- anyStmt
       guard $ lbl1 == lbl1'
       body2 <- many jumpless
-      -- parse end of if (not counted)
+      -- parse end of if
       (Just lbl2', _) <- anyStmt
       guard $ lbl2 == lbl2'
       -- all ok!
-      let sizeElse = sizeIf + 2 + length body2
-      return (sizeElse, [(ifLbl, S_ifElse cond body2 body1)])
+      return [(ifLbl, S_ifElse cond body2 body1)]
+
     _ -> fail "mapGotoIf: no match"
 
 
@@ -282,7 +283,7 @@ mapWhile  m = m { methodStmts = go $ methodStmts m }
           -- Sanity check
           unless (jumpLabel stmtEnd == Just lblStart) $
             fail "mapWhile: Mismatch between labels"
-          (lblNext, stmtNext) <- anyStmt
+          next@(lblNext, stmtNext) <- anyStmt
           -- Setup break/continue statements
           let labels = maybe id (`M.insert` S_break name) lblNext $
                        M.fromList [(lblStart, S_continue name :: Stmt Value)]
@@ -292,7 +293,7 @@ mapWhile  m = m { methodStmts = go $ methodStmts m }
                 S_goto _    -> VConst $ C_boolean True
                 S_if cnd' _ -> VExpr cnd'
           -- Construct doWhile
-          return (j - i + 1, [(Just lblStart, S_doWhile name body' cnd)])
+          return [(Just lblStart, S_doWhile name body' cnd), next]
         _ -> fail "mapWhile: No backreference here"
 
     addRef refs line key = M.adjust (second (line:)) key refs
@@ -325,8 +326,7 @@ replaceLabels labels = mapS go
 -- ==>
 -- > switch v [(case0, body0), (case1, body1), (case2, body2))]
 mapSwitch = mapRewrite $ do
-  start <- sourceLine <$> getPosition
-  let name = "switch_" ++ show start
+  name <- (("switch_"++).show) <$> sourceLine <$> getPosition
   (lblStart, S_lookupSwitch v lblDef cs0) <- switchP
 
   -- Group statements according to case
@@ -351,9 +351,8 @@ mapSwitch = mapRewrite $ do
         cs2 ++ [(Nothing, defaultS)]
     Nothing  -> return cs2
 
-  -- Compute total size and return rewritten statement
-  stop <- sourceLine <$> getPosition
-  return (stop - start, [(lblStart, S_switch name v cs3)])
+  -- Return rewritten statement
+  return [(lblStart, S_switch name v cs3)]
   where
     go ((n0, _), (n1, l1)) = do
       body <- upTo l1
@@ -366,66 +365,53 @@ mapSwitch = mapRewrite $ do
       if | lbl0 /= lbl -> ((body++).(stmt:)) <$> upTo lbl
          | otherwise   -> return body'
 
-
-data StmtR = SNothing
-           | SInclude (Stmt Value)
-           | SExclude (Stmt Value)
+db x = traceShow x x
 
 mapTryCatch = mapRewrite $ do
-  start <- sourceLine <$> getPosition
-  (mlbl1, S_try sid) <- anyStmt
-  body1 <- many $ satisfy $ not . isCatch
-
-  let mLblEnd = case last body1 of
-        (_, S_goto lbl) -> Just lbl
-        _               -> Nothing
-
-  (catches, stmtEnd) <- catchAll sid mLblEnd
-
-  stop <- sourceLine <$> getPosition
-  let size = stop - start
-
-  return ( size
-         , (mlbl1, uncurry S_tryCatch $ fixFinally body1 catches):[stmtEnd] )
+  (mlbl1, S_try sid lastTarget) <- db <$> satisfy isTry
+  -- Parse try-body
+  body1 <- readBody
+  -- Parse catch cases (including finally)
+  (rest, catches) <- partitionEithers <$> catchAll sid
+  -- Return tryCatch
+  return $ (mlbl1, S_tryCatch body1 catches):rest
 
   where
-    isCatch (_, S_catch _ _) = True
-    isCatch _                = False
+    isTry (_, S_try _ _) = True
+    isTry _              = False
 
-    catchAll sid mLblEnd = goM
-      where
-        goM = do
-          next <- catchNext sid mLblEnd
-          case next of
-            Left  end   -> return ([], end)
-            Right group -> do
-              (rest, end) <- goM
-              return $ (group:rest, end)
+    isCatch (_, S_catch _ _ _) = True
+    isCatch _                  = False
 
-    catchNext sid mLblEnd = do
+    catchAll sid = do
+      enext <- catchNext sid
+      case enext of
+        Left  stmt -> return [enext]
+        Right g    -> do gs <- catchAll sid
+                         return $ enext : gs
+
+    catchNext sid = do
       stmt <- anyStmt
       case stmt of
-        (Nothing, S_catch sid' mexc) -> do
-          when (sid' /= sid) $ fail "try and catch doesn't match"
-          body <- readBody mLblEnd
+        (Nothing, S_catch sid' _ mexc) | sid' == sid -> do
+          body <- readBody
           return $ Right (mexc, body)
-        (lbl, _) | isJust mLblEnd && lbl == mLblEnd ->
-          return $ Left stmt
-        stmt -> return $ Left stmt
 
-    readBody mLblEnd = do
-      ms <- optionMaybe $ satisfy $ notEndStmt mLblEnd
-      let stmt = maybe (return []) (\s -> return [s]) ms
+        _ -> return $ Left stmt
+
+    readBody = do
+      ms <- optionMaybe $ satisfy $ not . isCatch
+      let stmt = maybe (return []) (return.(:[])) ms
       case ms of
-        Nothing                    -> stmt
+        (Just (_,   S_try    _ _)) -> trace "fail" $ fail "Need to fix inner try first!"
         (Just (_,   S_return _  )) -> stmt
         (Just (_,   S_throw  _  )) -> stmt
-        _                          -> liftM2 (++) stmt $ readBody mLblEnd
+        (Just (_,   S_goto   _  )) -> return []
+        Nothing                    -> stmt
+        _                          -> liftM2 (++) stmt readBody
 
-    notEndStmt mLblEnd (_, S_catch _ _)           = False
-    notEndStmt mLblEnd (mlbl, _) | isJust mLblEnd = mlbl /= mLblEnd
-    notEndStmt _       _                          = True
 
+    fixFinally body1 []  = error $ "Only body! " ++ show body1
     fixFinally body1 cs0 = case (last cs0, init cs0) of
       -- No finally clause
       ((Just exc, _), _) -> (body1, cs0)
@@ -433,17 +419,22 @@ mapTryCatch = mapRewrite $ do
       ((Nothing, finBody1), cs1) ->
         let finBody2 = drop 1 $ init finBody1
             delFin   = delFinally finBody2
+            body2    = map (fixBody delFin) $ delFin body1
             cs2      = [ (exc, delFin bd) | (exc, bd) <- cs1 ]
         in
-        (delFin body1, cs2 ++ [(Nothing, finBody2)])
+        (body2, cs2 ++ [(Nothing, finBody2)])
         where
-          delFinally fin body | useLast   = prefix ++ [last body]
-                              | otherwise = prefix
+          delFinally fin body | s@(_, S_throw  _) <- last body = body
+          delFinally fin body | fin == ending      = prefix
+                              | fin == init ending = prefix ++ [last ending]
+                              | otherwise = body
             where
-              prefix  = init $ take (length body - length fin) body
-              bodyLen = length body
-              finLen  = length fin
-              useLast = case last body of
-                (_, S_return _) -> True
-                (_, S_throw  _) -> True
-                (_, _         ) -> False
+              ending = drop (length prefix) body
+              prefix = take (length body - length fin) body
+
+          fixBody f (lbl, s) = (lbl,) $ case s of
+            S_tryCatch bd cs -> S_tryCatch (go bd) (go' cs)
+            s -> s
+            where
+              go   x = map (fixBody f) $ f x
+              go' xs = map (second go) xs

@@ -24,8 +24,10 @@ cleanupExcTable (ExceptTable et0) = ExceptTable et1
 
 
 fromStart :: ExceptTable -> Integer -> [ExceptEntry]
-fromStart (ExceptTable et) start = M.elems $ M.fromList [
-  ((exceptFrom e, -1 * exceptTo e), e) | e <- et, exceptFrom e == start ]
+fromStart (ExceptTable et) start =
+  M.elems $ M.fromList
+  [ ((exceptFrom e, negate $ exceptTo e), e)
+  | e <- et, exceptFrom e == start ]
 
 fromTarget :: ExceptTable -> Integer -> Maybe ExceptEntry
 fromTarget (ExceptTable et) targ = listToMaybe $

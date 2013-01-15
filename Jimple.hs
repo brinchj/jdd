@@ -121,8 +121,8 @@ byteCodeP excTable codeLength = do
       modifySnd $ \j -> j { prevPos = pos }
 
       -- Handle try
-      F.forM_ (fromStart  excTable pos) $ \exc ->
-        append $ S_try (pos, exceptTo exc)
+      F.forM_ (fromStart excTable pos) $ \exc ->
+        append $ S_try (pos, exceptTo exc) $ exceptTarget exc
 
       -- Handle catch
       F.forM_ (fromTarget excTable pos) catch
@@ -133,10 +133,10 @@ byteCodeP excTable codeLength = do
           parse $ ord $ fromJust mcode
           codeM
 
-    catch (ExceptEntry start to _ eid) = do
+    catch (ee@(ExceptEntry start to _ eid)) = do
       mx <- if eid == 0 then return Nothing else getCP eid
       let x = (\(CF.ClassRef x) -> x) `fmap` mx
-      append $ S_catch (start, to) x
+      append $ S_catch (start, to) ee x
       void $ pushL $! VarLocal $! Local "exc"
 
 

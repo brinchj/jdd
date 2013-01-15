@@ -29,7 +29,10 @@ module Jimple.Rewrite
        where
 
 import Control.Applicative hiding (many)
+
 import Control.Monad
+import Control.Monad.Error    (runErrorT, ErrorT(..))
+import Control.Monad.Identity (runIdentity, Identity)
 
 import Data.Maybe
 import Text.Parsec hiding (satisfy, label)
@@ -38,7 +41,7 @@ import Jimple.Types
 
 
 type Item   = (Maybe Label, Stmt Value)
-type Parser = Parsec [Item] ()
+type Parser = ParsecT [Item] () (ErrorT String Identity)
 
 
 satisfyWith :: (Item -> Maybe Item) -> Parser Item
@@ -72,7 +75,7 @@ hasLabel _             = False
 labelP = fst <$> label
 
 
-jumpless :: Parser Item
+-- jumpless :: Parser Item
 jumpless = satisfy f
   where
     f (_, S_goto _) = False
@@ -94,12 +97,13 @@ switchStmt _ = False
 switchP = satisfy $ switchStmt . snd
 
 
-rewrite :: Parser (Int, [Item]) -> [Item] -> Maybe [Item]
+rewrite :: Parser [Item] -> [Item] -> Maybe [Item]
 rewrite p xs = go xs
   where
     go [] = Nothing
-    go xs = case runP p () "" xs of
-      Left _ ->
+    go xs = case runIdentity $ runErrorT $ runPT (play p) () "rewrite" xs of
+      Right (Right (size, xs')) -> Just $ xs' ++ drop size xs
+      _ ->
         case xs of
           ((lbl, S_ifElse cnd left right):rest)
             | Just [left, right] <- goAny [left, right] ->
@@ -113,9 +117,14 @@ rewrite p xs = go xs
               Just $ (lbl, S_switch name v $ zip (map fst cs) result) : rest
 
           _ -> (head xs:) `fmap` go (tail xs)
-      Right (size, xs') -> Just $ xs' ++ drop size xs
 
     goAny [] = Nothing
     goAny (x:xs)
       | Just result <- go x = Just $ result : xs
       | otherwise           = (x:) <$> goAny xs
+
+    play p = do
+      start <- sourceLine <$> getPosition
+      res <- p
+      stop <- sourceLine <$> getPosition
+      return (stop - start, res)
