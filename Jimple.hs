@@ -248,6 +248,9 @@ byteCodeP excTable codeLength = do
       -- IMUL: multiply two ints
       0x68 -> void $ push =<< VExpr <$> apply2 E_mul
 
+      -- IDIV: divide two ints
+      0x6c -> void $ push =<< VExpr <$> apply2 E_div
+
       -- IREM: rem two ints
       0x70 -> void $ push =<< VExpr <$> apply2 E_rem
 
