@@ -31,7 +31,6 @@ module Jimple.Rewrite
        , jumpP
 
        , switchStmt
-       , switchP
 
        , rewrite
        , many )
