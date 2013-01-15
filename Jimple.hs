@@ -163,8 +163,8 @@ byteCodeP excTable codeLength = do
       0x0e -> void $ push $! VConst $! C_double 0.0
       0x0f -> void $ push $! VConst $! C_double 1.0
 
-      -- BIPUSH: push byte to stack as int
-      0x10 -> void . push =<< VConst . C_int <$> u1
+      -- BIPUSH: signed byte to stack as int
+      0x10 -> void . push =<< VConst . C_int <$> s1
 
       -- SIPUSH: signed short to stack as int
       0x11 -> void . push =<< VConst . C_int <$> s2
@@ -255,7 +255,7 @@ byteCodeP excTable codeLength = do
       0x7e -> void $ push =<< VExpr <$> apply2 E_and
 
       -- IINC: increment by constant
-      0x84 -> do (idx, val) <- liftM2 (,) u1 u1
+      0x84 -> do (idx, val) <- liftM2 (,) u1 s1
                  append $! S_assign (getLocal idx) $! VExpr $!
                    E_add (VLocal $! getLocal idx) $! VConst $! C_int val
 
@@ -423,6 +423,9 @@ byteCodeP excTable codeLength = do
 
     -- read 4-byte int
     u4 = bytesToUnsigned <$> count 4 nextByte
+
+    -- read 1-byte signed int
+    s1 = CF.makeSigned  8 <$> u1
 
     -- read 2-byte signed int
     s2 = CF.makeSigned 16 <$> u2
