@@ -30,7 +30,7 @@ import Data.Either
 import Jimple.Types
 import Jimple.Rewrite
 
-import Text.Parsec     (getPosition, optionMaybe)
+import Text.Parsec     (getPosition, optionMaybe, try, many1)
 import Text.Parsec.Pos (sourceLine)
 
 
@@ -233,7 +233,7 @@ mapElimGoto = mapRewrite $ do
 --   > ... body2
 --   > lbl2: } ==> if cond body2 body1
 mapGotoIf = mapRewrite $ do
-  (ifLbl, S_if cond lbl1) <- satisfy if_
+  (ifLbl, S_if cond lbl1) <- ifP
   body1 <- bodyM lbl1
   next  <- anyStmt
   case next of
@@ -369,7 +369,7 @@ mapSwitch = mapRewrite $ do
 db x = traceShow x x
 
 mapTryCatch = mapRewrite $ do
-  (mlbl1, S_try sid lastTarget) <- db <$> satisfy isTry
+  (mlbl1, S_try sid lastTarget) <- db <$> tryP
   -- Parse try-body
   body1 <- readBody
   -- Parse catch cases (including finally)
@@ -401,7 +401,7 @@ mapTryCatch = mapRewrite $ do
         _ -> return $ Left stmt
 
     readBody = do
-      ms <- optionMaybe $ satisfy $ not . isCatch
+      ms <- optionMaybe $ satisfy $ not . catch_
       let stmt = maybe (return []) (return.(:[])) ms
       case ms of
         (Just (_,   S_try    _ _)) -> E.throwError "Need to fix inner try first!"

@@ -11,7 +11,16 @@ module Jimple.Rewrite
 
        , goto
        , gotoP
+
        , if_
+       , try_
+       , catch_
+       , switch_
+
+       , ifP
+       , tryP
+       , catchP
+       , switchP
 
        , label
        , labelLess
@@ -64,6 +73,22 @@ gotoP = snd <$> satisfy goto
 
 if_ (_, S_if _ _) = True
 if_             _ = False
+ifP = satisfy if_
+
+try_ (_, S_try _ _) = True
+try_              _ = False
+tryP = satisfy try_
+
+catch_ (_, S_catch _ _ _) = True
+catch_                  _ = False
+catchP = satisfy catch_
+
+
+switchStmt S_lookupSwitch{} = True
+switchStmt _ = False
+
+switch_ = switchStmt . snd
+switchP = satisfy switch_
 
 
 label     = satisfy hasLabel
@@ -90,11 +115,6 @@ jumpLabel _ = Nothing
 
 
 jumpP = satisfy $ isJust . jumpLabel . snd
-
-switchStmt S_lookupSwitch{} = True
-switchStmt _ = False
-
-switchP = satisfy $ switchStmt . snd
 
 
 rewrite :: Parser [Item] -> [Item] -> Maybe [Item]
