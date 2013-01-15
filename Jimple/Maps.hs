@@ -10,12 +10,13 @@ import Debug.Trace
 
 import qualified Parser as CF
 
-import Control.Monad
 import Control.Arrow (first, second)
 import Control.Applicative ((<$>))
 
-import qualified Control.Monad.State as ST
+import Control.Monad
+import qualified Control.Monad.State  as ST
 import qualified Control.Monad.Writer as W
+import qualified Control.Monad.Error  as E
 
 import qualified Data.ByteString as B
 import qualified Data.Foldable as F
@@ -250,7 +251,7 @@ mapGotoIf = mapRewrite $ do
       -- all ok!
       return [(ifLbl, S_ifElse cond body2 body1)]
 
-    _ -> fail "mapGotoIf: no match"
+    _ -> E.throwError "mapGotoIf: no match"
 
 
 
@@ -281,8 +282,8 @@ mapWhile  m = m { methodStmts = go $ methodStmts m }
           body <- replicateM (j - i - 1) anyStmt
           (lblEnd, stmtEnd)  <- jumpP
           -- Sanity check
-          unless (jumpLabel stmtEnd == Just lblStart) $
-            fail "mapWhile: Mismatch between labels"
+          E.guard (jumpLabel stmtEnd == Just lblStart)
+
           next@(lblNext, stmtNext) <- anyStmt
           -- Setup break/continue statements
           let labels = maybe id (`M.insert` S_break name) lblNext $
@@ -294,7 +295,7 @@ mapWhile  m = m { methodStmts = go $ methodStmts m }
                 S_if cnd' _ -> VExpr cnd'
           -- Construct doWhile
           return [(Just lblStart, S_doWhile name body' cnd), next]
-        _ -> fail "mapWhile: No backreference here"
+        _ -> E.throwError "mapWhile: No backreference here"
 
     addRef refs line key = M.adjust (second (line:)) key refs
 
@@ -403,7 +404,7 @@ mapTryCatch = mapRewrite $ do
       ms <- optionMaybe $ satisfy $ not . isCatch
       let stmt = maybe (return []) (return.(:[])) ms
       case ms of
-        (Just (_,   S_try    _ _)) -> trace "fail" $ fail "Need to fix inner try first!"
+        (Just (_,   S_try    _ _)) -> E.throwError "Need to fix inner try first!"
         (Just (_,   S_return _  )) -> stmt
         (Just (_,   S_throw  _  )) -> stmt
         (Just (_,   S_goto   _  )) -> return []
