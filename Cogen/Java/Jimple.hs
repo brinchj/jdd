@@ -242,7 +242,7 @@ methodToJava (Method sig locals0 idents stmts excs) =
 
 phase1 = mapCorrectInit . mapCorrectLabels
 phase2 = mapFix $ mapCleanup . mapInline . mapAppendEmpty
-phase3 = mapFix $ mapTryCatch . mapSwitch . mapWhile . mapGotoIf . mapElimGoto
+phase3 = mapFix $ mapTryCatch . mapGotoIf . mapSwitch . mapWhile . mapElimGoto
 
 classToJava :: CF.ClassFile -> Java
 classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
