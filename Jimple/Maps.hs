@@ -373,32 +373,16 @@ mapTryCatch = mapRewrite $ do
   -- Parse try-body
   body1 <- readBody
   -- Parse catch cases (including finally)
-  (rest, catches) <- partitionEithers <$> catchAll sid
+  catches <- many1 $ catch1 sid
   -- Return tryCatch
-  return $ (mlbl1, S_tryCatch body1 catches):rest
+  return [(mlbl1, S_tryCatch body1 catches)]
 
   where
-    isTry (_, S_try _ _) = True
-    isTry _              = False
-
-    isCatch (_, S_catch _ _ _) = True
-    isCatch _                  = False
-
-    catchAll sid = do
-      enext <- catchNext sid
-      case enext of
-        Left  stmt -> return [enext]
-        Right g    -> do gs <- catchAll sid
-                         return $ enext : gs
-
-    catchNext sid = do
-      stmt <- anyStmt
-      case stmt of
-        (Nothing, S_catch sid' _ mexc) | sid' == sid -> do
-          body <- readBody
-          return $ Right (mexc, body)
-
-        _ -> return $ Left stmt
+    catch1 sid = try $ do
+      (Nothing, S_catch sid' _ mexc) <- catchP
+      guard $ sid' == sid
+      body <- readBody
+      return (mexc, body)
 
     readBody = do
       ms <- optionMaybe $ satisfy $ not . catch_
