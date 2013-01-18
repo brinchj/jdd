@@ -49,9 +49,8 @@ runJavaOK workDir path = do
       return stdout
 
 
-
-testJava :: FilePath -> IO ()
-testJava path = withTemporaryDirectory "jdd-test" $ \tmpDir -> do
+runJavaTwice :: FilePath -> IO (String, String)
+runJavaTwice path = withTemporaryDirectory "jdd-test" $ \tmpDir -> do
   makeDirs tmpDir $ splitDirectories $ takeDirectory path
   -- Test original
   copyFile javaPath $ tmpDir </> javaPath
@@ -60,15 +59,24 @@ testJava path = withTemporaryDirectory "jdd-test" $ \tmpDir -> do
   code <- decompileClass $ tmpDir </> path <.> "class"
   writeFile (tmpDir </> javaPath) code
   stdout1 <- run tmpDir
-  -- Compare
-  assertEqual "stdout" stdout0 stdout1
+  -- Return both stdouts
+  return (stdout0, stdout1)
   where
     run workDir = runJavaOK workDir path
 
+    makeDirs dir ("/":xs) = makeDirs dir xs
+    makeDirs dir (".":xs) = makeDirs dir xs
     makeDirs dir (x:xs) = createDirectory (dir </> x) >> makeDirs (dir </> x) xs
     makeDirs dir []     = return ()
 
     javaPath = path <.> "java"
+
+
+testJava :: FilePath -> IO ()
+testJava path = do
+  -- Compare
+  (stdout0, stdout1) <- runJavaTwice path
+  assertEqual "stdout" stdout0 stdout1
 
 
 makeTest name = TestLabel name $ TestCase $ testJava $ "examples" </> name
