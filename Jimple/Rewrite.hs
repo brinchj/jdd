@@ -65,21 +65,21 @@ satisfy f = satisfyWith $ \x -> if f x then Just x else Nothing
 anyStmt = satisfy $ const True
 
 
-goto (Nothing, S_goto _) = True
+goto (Nothing, S_goto{}) = True
 goto                   _ = False
 gotoP = snd <$> satisfy goto
 
 
-if_ (_, S_if _ _) = True
-if_             _ = False
+if_ (_, S_if{}) = True
+if_           _ = False
 ifP = satisfy if_
 
-try_ (_, S_try _ _) = True
-try_              _ = False
+try_ (_, S_try{}) = True
+try_            _ = False
 tryP = satisfy try_
 
-catch_ (_, S_catch _ _ _) = True
-catch_                  _ = False
+catch_ (_, S_catch{}) = True
+catch_              _ = False
 catchP = satisfy catch_
 
 
@@ -102,8 +102,8 @@ labelP = fst <$> label
 -- jumpless :: Parser Item
 jumpless = satisfy f
   where
-    f (_, S_goto _) = False
-    f (_, S_if _ _) = False
+    f (_, S_goto{}) = False
+    f (_, S_if{}  ) = False
     f (Nothing,  _) = True
     f _             = False
 

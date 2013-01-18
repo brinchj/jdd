@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Jimple.Exceptions where
 
 import Data.Maybe
@@ -14,7 +16,7 @@ cleanupExcTable (ExceptTable et0) = ExceptTable et1
   where
     -- Sort by first appearing then longest block (to - from)
     et1 = go $ L.sortBy (comparing eOrder) et0
-    eOrder (ExceptEntry from to targ id) = (from, negate (to - from))
+    eOrder ExceptEntry{..} = (exceptFrom, negate $ exceptTarget - exceptFrom)
 
     -- Remove compiler-generated catch-handlers
     go []     = []
@@ -24,10 +26,10 @@ cleanupExcTable (ExceptTable et0) = ExceptTable et1
 
 
 fromStart :: ExceptTable -> Integer -> [ExceptEntry]
-fromStart (ExceptTable et) start =
+fromStart (ExceptTable ees) start =
   M.elems $ M.fromList
-  [ ((exceptFrom e, negate $ exceptTo e), e)
-  | e <- et, exceptFrom e == start ]
+  [ ((exceptFrom, negate exceptTo), e)
+  | e@(ExceptEntry{..}) <- ees, exceptFrom == start ]
 
 fromTarget :: ExceptTable -> Integer -> Maybe ExceptEntry
 fromTarget (ExceptTable et) targ = listToMaybe $
