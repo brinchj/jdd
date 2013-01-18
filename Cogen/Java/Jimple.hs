@@ -31,7 +31,7 @@ import qualified Parser as CF
 
 --
 instance Javable (LabelStmt Value) where
-  toJava = stmtToJava
+  toJava = stmtToJava . snd
 
 
 line st = Java [JavaStmt 0 $ st ++ ";"]
@@ -64,7 +64,12 @@ type_ t = case t of
   T_array n tp -> concat $ type_ tp:replicate n "[]"
   T_object cp  -> path cp
   T_void -> "void"
+  T_byte -> "byte"
+  T_char -> "char"
   T_int  -> "int"
+  T_boolean -> "boolean"
+  T_float -> "float"
+  T_double -> "double"
   foo -> show foo
 
 
@@ -142,7 +147,7 @@ inline s = code
   where
     Java code = toJava s
 
-stmtToJava (lbl, s) = case s of
+stmtToJava s = case s of
   S_nop -> Java []
 
 
