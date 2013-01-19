@@ -34,6 +34,7 @@ import qualified Parser as CF
 import Util
 import Jimple.Types
 import Jimple.Exceptions
+import Jimple.Rewrite (try_)
 
 
 typeP :: Parser Type
@@ -410,8 +411,13 @@ byteCodeP excTable codeLength = do
     -- append a label-less statement to code
     append cmd = do
       pos <- ST.gets $ prevPos . snd
+      stmts <- ST.gets $ methodStmts . fst
+      -- When injecting a S_try{} we also "eat" the following label
+      let mlabel = if L.null stmts || not (try_ $ last stmts)
+                   then Just $ Label pos
+                   else Nothing
       modifyFst $ \m ->
-        m { methodStmts = methodStmts m ++ [(Just $ Label pos, cmd)] }
+        m { methodStmts = methodStmts m ++ [(mlabel, cmd)] }
 
     -- read and register 1 byte
     nextByte = do b <- anyChar
