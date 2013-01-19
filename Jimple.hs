@@ -128,11 +128,11 @@ byteCodeP excTable codeLength = do
       -- Handle catch
       F.forM_ (fromTarget excTable pos) catch
 
-      unless (pos >= codeLength) $ do
-        mcode <- optionMaybe nextByte
-        when (isJust mcode) $ do
-          parse $ ord $ fromJust mcode
-          codeM
+      -- Check for EOF
+      mcode <- optionMaybe nextByte
+      case mcode of
+        Nothing -> return ()
+        Just c  -> (parse $ ord c) >> codeM
 
     catch (ee@(ExceptEntry start to _ eid)) = do
       mx <- if eid == 0 then return Nothing else getCP eid
