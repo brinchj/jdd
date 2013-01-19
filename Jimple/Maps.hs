@@ -388,13 +388,12 @@ mapTryCatch = mapRewrite $ do
       ms <- optionMaybe $ satisfy $ not . catch_
       let stmt = maybe (return []) (return.(:[])) ms
       case ms of
-        (Just (_,   S_try    _ _)) -> E.throwError "Need to fix inner try first!"
-        (Just (_,   S_return _  )) -> stmt
-        (Just (_,   S_throw  _  )) -> stmt
-        (Just (_,   S_goto   _  )) -> return []
-        Nothing                    -> stmt
-        _                          -> liftM2 (++) stmt readBody
-
+        (Just (_, S_try{}   )) -> E.throwError "Need to fix inner try first!"
+        (Just (_, S_goto{}  )) -> return []
+        (Just (_, S_return{})) -> stmt
+        (Just (_, S_throw{} )) -> stmt
+        Nothing                -> stmt
+        _                      -> liftM2 (++) stmt readBody
 
     fixFinally body1 []  = error $ "Only body! " ++ show body1
     fixFinally body1 cs0 = case (last cs0, init cs0) of
