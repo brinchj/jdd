@@ -7,6 +7,7 @@ module Cogen.Java.Jimple where
 
 import Prelude hiding (const)
 import Data.List
+import Data.Maybe
 
 import System.FilePath (takeDirectory, takeBaseName)
 import qualified Data.ByteString.Char8 as B
@@ -183,15 +184,15 @@ stmtToJava s = case s of
       JavaBlock (concat [nm, ": switch(", value v, ") "]) (inline $ cases ++ def) ""
     ]
 
-  S_tryCatch bd cs ->
+  S_tryCatch bd cs mfn ->
     -- Regular catch
     let catches = [ JavaBlock
                     (concat ["catch (", path $ classPath e, " exc) "])
                     (inline stmts) ""
-                  | (Just e, stmts) <- cs ] in
+                  | (e, stmts) <- cs ] in
     -- Finally clause
     let finally = [ JavaBlock "finally " (inline stmts) ""
-                  | (Nothing, stmts) <- cs, not $ null stmts ] in
+                  | stmts <- maybeToList mfn, not $ null stmts ] in
     Java $ [
       JavaBlock "try " (inline bd) ""
       ] ++ catches ++ finally

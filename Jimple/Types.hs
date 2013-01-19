@@ -63,7 +63,9 @@ data Stmt v = S_breakpoint
             -- Low-level exception hints, catch (finally is 'S_catch Nothing')
             | S_try      (Integer, Integer) Integer
             | S_catch    (Integer, Integer) ExceptEntry (Maybe CF.Class)
-            | S_tryCatch [LabelStmt v] [(Maybe CF.Class, [LabelStmt v])]
+            | S_tryCatch [LabelStmt v]
+              [(CF.Class, [LabelStmt v])] -- catch exception
+              (Maybe [LabelStmt v])       -- finally
             deriving (Eq, Ord, Functor, F.Foldable)
 
 
@@ -222,7 +224,8 @@ instance Show v => Show (Stmt v) where
   show (S_try   s t) = "try " ++ show s ++ " -> " ++ show t
   show (S_catch s _ e) = concat ["catch ", show s, " (", show e, ")"]
 
-  show (S_tryCatch body catches) = concat ["tryCatch ", show body, show catches]
+  show (S_tryCatch body catches finally) =
+    concat ["tryCatch ", show body, show catches, " finally ", show finally]
 
 
 instance Show v => Show (Variable v) where

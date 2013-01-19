@@ -366,23 +366,27 @@ mapSwitch = mapRewrite $ do
       if | lbl0 /= lbl -> ((body++).(stmt:)) <$> upTo lbl
          | otherwise   -> return body'
 
+
 db x = traceShow x x
 
+
 mapTryCatch = mapRewrite $ do
-  (mlbl1, S_try sid lastTarget) <- db <$> tryP
+  (mlbl1, S_try sid lastTarget) <- tryP
   -- Parse try-body
   body1 <- readBody
   -- Parse catch cases (including finally)
-  catches <- many1 $ catch1 sid
+  (catches, finally) <- partitionEithers <$> many1 (catch1 sid)
   -- Return tryCatch
-  return [(mlbl1, S_tryCatch body1 catches)]
+  return [(mlbl1, S_tryCatch body1 catches $ listToMaybe finally)]
 
   where
     catch1 sid = try $ do
       (Nothing, S_catch sid' _ mexc) <- catchP
       guard $ sid' == sid
       body <- readBody
-      return (mexc, body)
+      return $ case mexc of
+        Just exc -> Left  (exc, body)
+        Nothing  -> Right body
 
     readBody = do
       ms <- optionMaybe $ satisfy $ not . catch_
@@ -395,30 +399,29 @@ mapTryCatch = mapRewrite $ do
         Nothing                -> stmt
         _                      -> liftM2 (++) stmt readBody
 
-    fixFinally body1 []  = error $ "Only body! " ++ show body1
-    fixFinally body1 cs0 = case (last cs0, init cs0) of
-      -- No finally clause
-      ((Just exc, _), _) -> (body1, cs0)
-      -- Finally clause! Fix it!
-      ((Nothing, finBody1), cs1) ->
+mapFixFinally = mapRewrite $ do
+  (mlbl, S_tryCatch body catches finally) <- anyStmt
+  fail ""
+  where
+    fixFinally body1 cs0 finBody1 =
         let finBody2 = drop 1 $ init finBody1
             delFin   = delFinally finBody2
-            body2    = map (fixBody delFin) $ delFin body1
-            cs2      = [ (exc, delFin bd) | (exc, bd) <- cs1 ]
+            body2    = delFin body1
+            cs2      = [ (exc, delFin bd) | (exc, bd) <- cs0 ]
         in
         (body2, cs2 ++ [(Nothing, finBody2)])
-        where
-          delFinally fin body | s@(_, S_throw  _) <- last body = body
-          delFinally fin body | fin == ending      = prefix
-                              | fin == init ending = prefix ++ [last ending]
-                              | otherwise = body
-            where
-              ending = drop (length prefix) body
-              prefix = take (length body - length fin) body
 
-          fixBody f (lbl, s) = (lbl,) $ case s of
-            S_tryCatch bd cs -> S_tryCatch (go bd) (go' cs)
-            s -> s
-            where
-              go   x = map (fixBody f) $ f x
-              go' xs = map (second go) xs
+    delFinally fin body | s@(_, S_throw  _) <- last body = body
+    delFinally fin body | fin == ending      = prefix
+                        | fin == init ending = prefix ++ [last ending]
+                        | otherwise = body
+      where
+        ending = drop (length prefix) body
+        prefix = take (length body - length fin) body
+
+    -- fixBody f (lbl, s) = (lbl,) $ case s of
+    --   S_tryCatch bd cs -> S_tryCatch (go bd) (go' cs)
+    --   _                -> s
+    --   where
+    --     go   x = map (fixBody f) $ f x
+    --     go' xs = map (second go) xs
