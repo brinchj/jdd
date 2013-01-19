@@ -248,7 +248,10 @@ methodToJava (Method sig locals0 idents stmts excs) =
 
 phase1 = mapCorrectInit . mapCorrectLabels
 phase2 = mapFix $ mapCleanup . mapInline . mapAppendEmpty
-phase3 = mapFix $ mapTryCatch . mapGotoIf . mapSwitch . mapWhile . mapElimGoto
+phase3 = mapFix $ mapGotoIf . mapSwitch . mapWhile . mapElimGoto
+phase4 = mapFix $ mapFixFinally . mapTryCatch
+
+transform = foldl (flip (.)) id [phase1, phase2, phase3, phase4]
 
 classToJava :: CF.ClassFile -> Java
 classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
@@ -287,7 +290,6 @@ classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
     jimpleMethod name =
       let (err, meth0) = parseJimple cl name
           -- Code rewriting
-          transform = phase3 . phase2 . phase1
           meth1 = transform meth0
       in
        -- Type local declarations
