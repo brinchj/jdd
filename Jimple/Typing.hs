@@ -119,14 +119,21 @@ simpleTyper (meth@(Method sig ls is ms me)) =
         S_assign (VarLocal v) e -> do
           mt0 <- get v
           flip (flip maybe $ const def) mt0 $ do
-              set v $ typeOf' e
-              mt1 <- get v
-              return $ flip (maybe s1) mt1 $ \t1 -> S_declare t1 (VarLocal v) e
+            x <- isJust <$> (ST.gets $ M.lookup v . snd)
+            set v $ typeOf' e
+            mt1 <- get v
+            return $ flip (maybe s1) mt1 $ \t1 ->
+              if x then s1 else
+                S_declare t1 (VarLocal v) e
 
         S_ifElse c left right -> liftM2 (S_ifElse c) (go' left) (go' right)
         S_switch n e ls       -> liftM (S_switch n e) $ handleSwitch ls
         S_doWhile n body v    -> liftM (flip (S_doWhile n) v) (go' body)
-        S_tryCatch body cs0   -> liftM2 S_tryCatch (go' body) $ handleExcepts cs0
+        S_tryCatch body cs0 mfn -> do
+          let fnM = case mfn of
+                Just fn -> Just <$> go' fn
+                Nothing -> return $ Nothing
+          liftM3 S_tryCatch (go' body) (handleExcepts cs0) fnM
 
         _ -> def
 
@@ -136,14 +143,10 @@ simpleTyper (meth@(Method sig ls is ms me)) =
     handleSwitch cs = forM cs $ \(c, body) ->
       (c,) <$> mapM go body
 
-    handleExcepts cs = forM cs $ \c -> isolate $ do
+    handleExcepts cs = forM cs $ \(exc, body) -> isolate $ do
       let go' = mapM go
-      case c of
-        (Just exc, body) -> do
-          set (Local "exc") $ Left $ T_object $ CF.classPath exc
-          (Just exc,) <$> go' body
-        (Nothing, body) ->
-          (Nothing,) <$> go' body
+      set (Local "exc") $ Left $ T_object $ CF.classPath exc
+      (exc,) <$> go' body
 
 
     rename m (VLocal (VarLocal l)) = VLocal $ VarLocal $
