@@ -32,6 +32,7 @@ module Jimple.Rewrite
 
        , switchStmt
 
+       , mapRewrite
        , rewrite
        , many )
        where
@@ -114,6 +115,13 @@ jumpLabel _ = Nothing
 
 
 jumpP = satisfy $ isJust . jumpLabel . snd
+
+
+
+-- Rewrite Jimple code according to rule
+mapRewrite rule m = m { methodStmts = go $ methodStmts m }
+  where
+    go ops = maybe ops go $ rewrite rule ops
 
 
 rewrite :: Parser [Item] -> [Item] -> Maybe [Item]

@@ -181,12 +181,6 @@ mapCorrectInit m = m { methodStmts = go $ methodStmts m }
       _ -> return $ Just stmt
 
 
--- Rewrite Jimple code according to rule
-mapRewrite rule m = m { methodStmts = go $ methodStmts m }
-  where
-    go ops = maybe ops go $ rewrite rule ops
-
-
 
 -- Eliminate cross goto:
 -- > goto 2
