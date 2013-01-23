@@ -19,10 +19,10 @@ cleanupExcTable (ExceptTable et0) = ExceptTable et1
     eOrder ExceptEntry{..} = (exceptFrom, negate $ exceptTarget - exceptFrom)
 
     -- Remove compiler-generated catch-handlers
+    -- TODO: Merge exceptions with identical target?
     go []     = []
-    go (e:es) = e : case e of
-      ExceptEntry _ _ targ 0 -> go $ filter ((targ/=).exceptTarget) es
-      _                      -> go es
+    go (ExceptEntry{exceptTarget=target}:es) =
+      go $ filter ((target/=).exceptTarget) es
 
 
 fromStart :: ExceptTable -> Integer -> [ExceptEntry]
