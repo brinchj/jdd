@@ -20,9 +20,9 @@ cleanupExcTable (ExceptTable et0) = ExceptTable et1
 
     -- Remove compiler-generated catch-handlers
     -- TODO: Merge exceptions with identical target?
-    go []     = []
-    go (ExceptEntry{exceptTarget=target}:es) =
-      go $ filter ((target/=).exceptTarget) es
+    go [] = []
+    go (e@ExceptEntry{exceptTarget=targ}:es) =
+      e : go (filter ((targ/=).exceptTarget) es)
 
 
 fromStart :: ExceptTable -> Integer -> [ExceptEntry]
