@@ -125,25 +125,38 @@ mapRewrite rule m = m { methodStmts = go $ methodStmts m }
 
 
 rewrite :: Parser [Item] -> [Item] -> Maybe [Item]
-rewrite p xs = go xs
+rewrite p = go
   where
     go [] = Nothing
     go xs = case runIdentity $ runErrorT $ runPT (play p) () "rewrite" xs of
       Right (Right (size, xs')) -> Just $ xs' ++ drop size xs
-      _ ->
-        case xs of
-          ((lbl, S_ifElse cnd left right):rest)
-            | Just [left, right] <- goAny [left, right] ->
-              Just $ (lbl, S_ifElse cnd left right) : rest
+      _ -> case xs of
+        ((lbl, x):rest) | Just x1 <- goStmt x -> Just $ (lbl, x1) : rest
+        _ -> (head xs:) `fmap` go (tail xs)
 
-          ((lbl, S_doWhile name body cnd):rest) | isJust $ go body ->
-            Just $ (lbl, S_doWhile name (fromJust $ go body) cnd) : rest
+    goStmt s = case s of
+      S_ifElse cnd left right
+        | Just [left1, right1] <- goAny [left, right] ->
+          Just $ S_ifElse cnd left1 right1
 
-          ((lbl, S_switch name v cs):rest)
-            | Just result <- goAny $ map snd cs ->
-              Just $ (lbl, S_switch name v $ zip (map fst cs) result) : rest
+      S_doWhile name body cnd
+        | Just body1 <- go body -> Just $ S_doWhile name body1 cnd
 
-          _ -> (head xs:) `fmap` go (tail xs)
+      S_switch name v cs
+        | Just result <- goAny $ map snd cs ->
+          Just $ S_switch name v $ zip (map fst cs) result
+
+      S_tryCatch body cs fin
+        | Just body1 <- go body -> Just $ S_tryCatch body1 cs fin
+
+      S_tryCatch body cs fin
+        | Just css <- goAny $ map snd cs ->
+          Just $ S_tryCatch body (zip (map fst cs) css) fin
+
+      S_tryCatch body cs (Just fin)
+        | Just fin1 <- go fin -> Just $ S_tryCatch body cs $ Just fin1
+
+      _ -> Nothing
 
     goAny [] = Nothing
     goAny (x:xs)
