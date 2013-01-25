@@ -1,8 +1,18 @@
 jdd
 ===
 
-    jdd > javac examples/HelloWorld.java
+Compile Main executable:
+
     jdd > ghc --make Main
+
+Run test-suite:
+
+    jdd > ./Main --test
+    Cases: 9  Tried: 9  Errors: 0  Failures: 0
+    
+Decompile class file:
+    
+    jdd > javac examples/HelloWorld.java
     jdd > ./Main examples/HelloWorld.class
     package examples;
 
@@ -22,6 +32,3 @@ jdd
         }
 
     }
-
-    jdd > ./Main --test
-    Cases: 8  Tried: 8  Errors: 0  Failures: 0
