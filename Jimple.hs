@@ -69,9 +69,21 @@ methodTypeFromBS = runP methodTypeP () "typesFromBS"
 methodTypeFromBS' :: B.ByteString -> ([Type], Type)
 methodTypeFromBS' = either (error.show) id . methodTypeFromBS
 
+
+-- | Parse Type from ByteString
+-- >>> typeFromBS (B.pack "I")
+-- Right T_int
+-- >>> typeFromBS (B.pack "[[D]]")
+-- Right (T_array 2 T_double)
 typeFromBS :: B.ByteString -> Either ParseError Type
 typeFromBS = runP typeP () "typeFromBS"
 
+
+-- | Parse Type from ByteString and return T_unknown on error
+-- >>> typeFromBS' (B.pack "I")
+-- T_int
+-- >>> typeFromBS' B.empty
+-- T_unknown
 typeFromBS' :: B.ByteString -> Type
 typeFromBS' = either (const T_unknown) id . typeFromBS
 
@@ -83,12 +95,22 @@ methodSigP meth = liftM2 meth paramsP resultP
     resultP = choice [try typeP, try voidP]
     voidP = char 'V' >> return T_void
 
+
 methodSigFromBS bs meth = runP (methodSigP meth) () "methodSig" bs
 
 methodSigFromBS' bs meth = either (error $ "methodSig: " ++ show bs) id $
                      methodSigFromBS bs meth
 
 
+-- | Convert a String to an unsigned integer
+-- >>> bytesToUnsigned ""
+-- 0
+-- >>> bytesToUnsigned "\255"
+-- 255
+-- >>> bytesToUnsigned "\1\0"
+-- 256
+-- >>> bytesToUnsigned "1337"
+-- 825439031
 bytesToUnsigned :: String -> Integer
 bytesToUnsigned = L.foldl' (\n b -> n * 256 + fromIntegral (ord b)) 0
 
