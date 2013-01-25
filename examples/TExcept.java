@@ -43,6 +43,7 @@ class TExcept {
     public static void main(String[] args) {
         System.out.println("main");
 	new TExcept(0);
+	new TExcept(1);
         System.out.println("done");
     }
 
