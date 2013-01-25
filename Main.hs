@@ -16,7 +16,7 @@ import Test (tests, makeTest)
 import Test.HUnit (runTestTT, Test(..))
 
 
-usage name = putStrLn $ concat [name, " [-|classfile|--test|--help]" ]
+usage name = putStrLn $ name ++ " [-|classfile|--test|--help]"
 
 main = do
   name <- getProgName
@@ -25,7 +25,7 @@ main = do
   case cmd of
     "" -> usage name
     "--help" -> usage name
-    "--test" | null rest -> void $ tests
+    "--test" | null rest -> void tests
              | otherwise -> void $ runTestTT $ TestList $ map makeTest rest
 
     file -> do

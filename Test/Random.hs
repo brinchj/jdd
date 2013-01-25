@@ -53,16 +53,17 @@ getG type_ = do
   reuse <- lift2 $ frequency [(10, return True), (1, return False)]
   mlst  <- ST.gets $ M.lookup type_
   case mlst of
-    Just (l@(x:xs)) | reuse -> Local <$> (lift2 $ elements l)
+    Just (l@(x:xs)) | reuse -> Local <$> lift2 (elements l)
     _                       -> create
   where
-    prefix = "v_" ++ (drop 2 $ show type_)
+    prefix = "v_" ++ drop 2 (show type_)
     create = do
       lst <- ST.gets $ M.lookup type_
       case lst of
         Nothing -> ST.modify $ M.insert type_ [prefix ++ "0"]
-        Just ls -> ST.modify $ M.insertWith (++) type_ [prefix ++ (show $ length ls)]
-      name <- head <$> fromJust <$> (ST.gets $ M.lookup type_)
+        Just ls -> ST.modify $
+                   M.insertWith (++) type_ [prefix ++ show (length ls)]
+      name <- head <$> fromJust <$> ST.gets (M.lookup type_)
       val  <- VConst <$> constG type_
       W.tell [SDeclare type_ (VarLocal $ Local name) val]
       return $ Local name
@@ -71,7 +72,7 @@ getG type_ = do
 assignG :: SGen ()
 assignG = do
   name <- getG TInt
-  val  <- lift2 $ arbitrary
+  val  <- lift2 arbitrary
   W.tell [
     SAssign (VarLocal name) $ VConst $ CInt val]
 
@@ -116,9 +117,9 @@ stmtG :: SGen ()
 stmtG = do
   x <- lift2 $ frequency [(1, return True), (50, return False)]
   (lst, i) <- if x then
-                (deeps,) <$> (lift2 $ elements [0..length deeps - 1])
+                (deeps,) <$> lift2 (elements [0..length deeps - 1])
               else
-                (stmts,) <$> (lift2 $ elements [0..length stmts - 1])
+                (stmts,) <$> lift2 (elements [0..length stmts - 1])
   lst !! i
   where
     deeps = [ifG]
@@ -131,8 +132,8 @@ stmtListG n = replicateM_ n stmtG >> printAll
 data StmtList = StmtList { unStmtList :: [Stmt Value] }
 
 instance Arbitrary StmtList where
-  arbitrary = sized $ \n -> StmtList <$> (flip ST.evalStateT M.empty $
-                                          W.execWriterT $ stmtListG n)
+  arbitrary = sized $ \n -> StmtList <$> ST.evalStateT
+                            (W.execWriterT $ stmtListG n) M.empty
 
 
 instance Arbitrary Java where
@@ -144,7 +145,7 @@ data Code = Code String
 
 instance Arbitrary Code where
   arbitrary = do code <- flatCode <$> surround <$> (arbitrary :: Gen Java)
-                 return $ Code $ code
+                 return $ Code code
     where
       surround (Java x) =
         Java [ JavaStmt 0 "package examples;"

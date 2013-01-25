@@ -157,7 +157,7 @@ stmtToJava s = case s of
 
   SDeclare t v val -> line $ concat [type_ t, " ", var v, " = ", value val]
 
-  SReturn mv -> line $ concat ["return ", maybe "" value mv]
+  SReturn mv -> line ("return " ++ maybe "" value mv)
 
   SDoWhile nm body v -> Java [
     JavaBlock (nm ++ ": do ") (inline body) (concat [" while (", value v, ");"])]
@@ -275,7 +275,7 @@ classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
     body = join [fields, methods]
 
     fields = join $ Java [emptyLine] :
-             (map field $ M.elems $ CF.classFields cl)
+             map field (M.elems $ CF.classFields cl)
 
     field (CF.AttrBlock blockFlags name desc _) =
       let typ = typeFromBS' desc
@@ -285,7 +285,7 @@ classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
                                  [type_ typ, " ", str name, ";"])]
 
     methods = join $ Java [emptyLine] :
-              (map jimpleMethod $ M.keys $ CF.classMethods cl)
+              map jimpleMethod (M.keys $ CF.classMethods cl)
 
     emptyLine = JavaStmt 0 ""
 
@@ -295,4 +295,4 @@ classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
           meth1 = transform meth0
       in
        -- Type local declarations
-       join $ [toJava $ simpleTyper meth1, Java [emptyLine]]
+       join [toJava $ simpleTyper meth1, Java [emptyLine]]

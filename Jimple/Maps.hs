@@ -36,7 +36,7 @@ import Text.Parsec.Pos (sourceLine)
 
 
 -- Map through statements recursively
-mapS f ls = map go ls
+mapS f = map go
   where
     go (mlbl, stmt) = f (mlbl, stmt')
       where
@@ -50,7 +50,7 @@ mapS f ls = map go ls
 mapA f ls = map f $ foldS (flip (:)) [] ls
 
 -- Fold through statements recursively
-foldS f zero ls = F.foldl' go zero ls
+foldS f = F.foldl' go
   where
     go acc0 (mlbl, stmt) = acc2
       where
@@ -58,7 +58,7 @@ foldS f zero ls = F.foldl' go zero ls
         acc2 = case stmt of
           SIfElse  _ l r  -> F.foldl' go (F.foldl' go acc1 l) r
           SDoWhile _ b _  -> F.foldl' go acc1 b
-          SSwitch  _ _ cs -> F.foldl' go acc1 $ L.concat $ map snd cs
+          SSwitch  _ _ cs -> F.foldl' go acc1 $ concatMap snd cs
           _                -> acc1
 
 
@@ -80,7 +80,7 @@ mapAppendEmpty m = m { methodStmts = map go $ methodStmts m }
     go s = s
 
 -- Identify pure values (no side-effects, used for inlining and cleaning)
-pureValue (VExpr (EInvoke _ _ _)) = False
+pureValue (VExpr EInvoke{}) = False
 pureValue (VExpr (ENew r _args)) = case r of
   RInstanceField _ _ -> True
   RStaticField   _ _ -> True
@@ -170,13 +170,13 @@ mapCorrectInit m = m { methodStmts = go $ methodStmts m }
     goM stmt@(lbl, s) = case s of
       SAssign v (VExpr (ENew (RObject cl) [])) -> do
         ST.modify $ M.insert cl v
-        return $ Nothing
+        return Nothing
 
       SAssign _ (VExpr
                   (EInvoke
                    (ISpecial (VLocal v))
                    (MethodSig cl "<init>" _fs _ts _rt) pars)) -> do
-        realv <- fromMaybe v <$> (ST.gets $ M.lookup cl)
+        realv <- fromMaybe v <$> ST.gets (M.lookup cl)
         return $ Just (lbl, SAssign realv (VExpr (ENew (RObject cl) pars)))
 
       _ -> return $ Just stmt
@@ -330,8 +330,8 @@ mapSwitch = mapRewrite $ do
   cs2 <- mapM go $ zip cs1 $ tail cs1
 
   -- Build default block if another block breaks past it
-  let ls0 = catMaybes   $ map (jumpLabel.snd) $
-            filter goto $ L.concat $ map (mapA id.snd) cs2
+  let ls0 = mapMaybe (jumpLabel.snd) $
+            filter goto $ concatMap (mapA id.snd) cs2
 
   -- Find break-label if present
   let lblBreak = listToMaybe $ L.sort $ filter (>= lblDef) ls0
@@ -358,8 +358,8 @@ mapSwitch = mapRewrite $ do
       body <- many labelLess
       stmt@(Just lbl0, s) <- label
       let body' = body ++ if s == SNop then [] else [stmt]
-      if | lbl0 /= lbl -> ((body++).(stmt:)) <$> upTo lbl
-         | otherwise   -> return body'
+      if lbl0 == lbl then return body
+        else ((body++).(stmt:)) <$> upTo lbl
 
 
 db x = traceShow x x
@@ -385,7 +385,7 @@ mapTryCatch = mapRewrite $ do
 
     readBody = do
       ms <- optionMaybe $ satisfy $ not . catch_
-      let stmt = maybe (return []) (return.(:[])) ms
+      let stmt = return . maybeToList $ ms
       case ms of
         (Just (_, STry{}   )) -> E.throwError "Need to fix inner try first!"
         (Just (_, SGoto{}  )) -> return []
@@ -424,7 +424,7 @@ mapFixFinally = mapRewrite $ do
 
     secondM f (a, b) = (a,) <$> f b
 
-    deep2 clean ls = map (second $ mapS $ f clean) ls
+    deep2 clean = map (second $ mapS $ f clean)
 
     deep clean = mapS (f clean)
 

@@ -4,6 +4,8 @@
 
 module Jimple where
 
+import Prelude hiding (catch)
+
 import qualified Data.ByteString.Char8 as B
 
 import Debug.Trace
@@ -28,6 +30,7 @@ import Control.Monad
 import Control.Monad.State as ST
 import Control.Monad.Reader as R
 import Control.Applicative
+import Control.Exception (catch)
 
 import qualified Parser as CF
 
@@ -154,7 +157,7 @@ byteCodeP excTable codeLength = do
       mcode <- optionMaybe nextByte
       case mcode of
         Nothing -> return ()
-        Just c  -> (parse $ ord c) >> codeM
+        Just c  -> parse (ord c) >> codeM
 
     catch (ee@(ExceptEntry start to _ eid)) = do
       mx <- if eid == 0 then return Nothing else getCP eid

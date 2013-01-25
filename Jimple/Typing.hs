@@ -119,7 +119,7 @@ simpleTyper (meth@(Method sig ls is ms me)) =
         SAssign (VarLocal v) e -> do
           mt0 <- get v
           flip (flip maybe $ const def) mt0 $ do
-            x <- isJust <$> (ST.gets $ M.lookup v . snd)
+            x <- isJust <$> ST.gets (M.lookup v . snd)
             set v $ typeOf' e
             mt1 <- get v
             return $ flip (maybe s1) mt1 $ \t1 ->
@@ -132,7 +132,7 @@ simpleTyper (meth@(Method sig ls is ms me)) =
         STryCatch body cs0 mfn -> do
           let fnM = case mfn of
                 Just fn -> Just <$> go' fn
-                Nothing -> return $ Nothing
+                Nothing -> return Nothing
           liftM3 STryCatch (go' body) (handleExcepts cs0) fnM
 
         _ -> def
