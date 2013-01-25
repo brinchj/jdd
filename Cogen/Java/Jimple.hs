@@ -251,7 +251,7 @@ methodToJava (Method sig locals0 idents stmts excs) =
 phase1 = mapCorrectInit . mapCorrectLabels
 phase2 = mapFix $ mapCleanup . mapInline . mapAppendEmpty
 phase3 = mapFix $ mapGotoIf . mapSwitch . mapWhile . mapElimGoto
-phase4 = mapFix $ mapFixFinally . mapTryCatch
+phase4 = mapFix mapFixFinally . mapFix mapTryCatch
 
 transform = foldl (flip (.)) id [phase1, phase2, phase3, phase4]
 
