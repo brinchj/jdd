@@ -41,33 +41,33 @@ data ExceptEntry =
   deriving (Eq, Ord, Show)
 
 
-data Stmt v = S_breakpoint
-            | S_assign       (Variable v) v
-            | S_declare Type (Variable v) v
-            | S_enterMonitor v
-            | S_exitMonitor  v
-            | S_goto Label
-            | S_if (Expression v) Label   -- Only condition expressions are allowed
-            | S_lookupSwitch v Label [(Integer, Label)]
-            | S_nop
-            | S_return (Maybe v)
-            | S_tableSwitch v Label [(Integer, Label)]
-            | S_throw v
+data Stmt v = SBreakpoint
+            | SAssign       (Variable v) v
+            | SDeclare Type (Variable v) v
+            | SEnterMonitor v
+            | SExitMonitor  v
+            | SGoto Label
+            | SIf (Expression v) Label   -- Only condition expressions are allowed
+            | SLookupSwitch v Label [(Integer, Label)]
+            | SNop
+            | SReturn (Maybe v)
+            | STableSwitch v Label [(Integer, Label)]
+            | SThrow v
             -- Below are statements for transitioning from Jimple to Java
-            | S_ifElse (Expression v) [LabelStmt v] [LabelStmt v]
+            | SIfElse (Expression v) [LabelStmt v] [LabelStmt v]
             -- We used labeled continue/break to tie the action to the loop
-            | S_doWhile  String [LabelStmt v] Value
-            | S_break    String
-            | S_continue String
-            | S_switch   String v [(Maybe Integer, [LabelStmt v])]
-            -- Low-level exception hints, catch (finally is 'S_catch Nothing')
-            | S_try      (Integer, Integer) Integer
-            | S_catch    (Integer, Integer) ExceptEntry (Maybe CF.Class)
-            | S_tryCatch [LabelStmt v]
+            | SDoWhile  String [LabelStmt v] Value
+            | SBreak    String
+            | SContinue String
+            | SSwitch   String v [(Maybe Integer, [LabelStmt v])]
+            -- Low-level exception hints, catch (finally is 'SCatch Nothing')
+            | STry      (Integer, Integer) Integer
+            | SCatch    (Integer, Integer) ExceptEntry (Maybe CF.Class)
+            | STryCatch [LabelStmt v]
               [(CF.Class, [LabelStmt v])] -- catch exception
               (Maybe [LabelStmt v])       -- finally
             -- Mainly for debugging
-            | S_comment String
+            | SComment String
             deriving (Eq, Ord, Functor, F.Foldable)
 
 
@@ -95,79 +95,79 @@ data Local = Local String
 instance Show Local where show (Local s) = s
 
 
-data AccessFlag = F_public
-                | F_private
-                | F_protected
-                | F_static
-                | F_final
-                | F_synchronized
-                | F_bridge
-                | F_varargs
-                | F_native
-                | F_abstract
-                | F_strict
-                | F_synthetic
+data AccessFlag = FPublic
+                | FPrivate
+                | FProtected
+                | FStatic
+                | FFinal
+                | FSynchronized
+                | FBridge
+                | FVarargs
+                | FNative
+                | FAbstract
+                | FStrict
+                | FSynthetic
                 deriving (Eq, Ord)
 
-data Constant = C_double Double
-              | C_float  Double
-              | C_int    Integer
-              | C_long   Integer
-              | C_string B.ByteString
-              | C_null
-              | C_boolean Bool
+data Constant = CDouble Double
+              | CFloat  Double
+              | CInt    Integer
+              | CLong   Integer
+              | CString B.ByteString
+              | CNull
+              | CBoolean Bool
               deriving (Eq, Ord, Show)
 
 data Variable v = VarRef (Ref v)
                 | VarLocal Local
                 deriving (Eq, Ord, Functor, F.Foldable)
 
-data Ref v = R_caughtException
-           | R_parameter     Integer
-           | R_this
-           | R_array         v v
-           | R_instanceField v CF.Desc
-           | R_staticField     CF.Class CF.Desc
-           | R_object          CF.Class
+data Ref v = RCaughtException
+           | RParameter     Integer
+           | RThis
+           | RArray         v v
+           | RInstanceField v CF.Desc
+           | RStaticField     CF.Class CF.Desc
+           | RObject          CF.Class
            deriving (Eq, Ord, Show, Functor, F.Foldable)
 
 
-data Expression v = E_eq v v -- Conditions
-                  | E_ge v v
-                  | E_le v v
-                  | E_lt v v
-                  | E_ne v v
-                  | E_gt v v
+data Expression v = EEq v v -- Conditions
+                  | EGe v v
+                  | ELe v v
+                  | ELt v v
+                  | ENe v v
+                  | EGt v v
 
-                  | E_add  v v -- Binary ops
-                  | E_sub  v v
-                  | E_and  v v
-                  | E_or   v v
-                  | E_xor  v v
-                  | E_shl  v v
-                  | E_shr  v v
-                  | E_ushl v v
-                  | E_ushr v v
-                  | E_cmp  v v
-                  | E_cmpg v v
-                  | E_cmpl v v
-                  | E_mul  v v
-                  | E_div  v v
-                  | E_rem  v v
+                  | EAdd  v v -- Binary ops
+                  | ESub  v v
+                  | EAnd  v v
+                  | EOr   v v
+                  | EXor  v v
+                  | EShl  v v
+                  | EShr  v v
+                  | EUshl v v
+                  | EUshr v v
+                  | ECmp  v v
+                  | ECmpg v v
+                  | ECmpl v v
+                  | EMul  v v
+                  | EDiv  v v
+                  | ERem  v v
 
-                  | E_length        v
-                  | E_instanceOf    v    (Ref v)
-                  | E_cast          Type v
-                  | E_newArray      Type v
-                  | E_newMultiArray Type v [v] -- TODO: empty dims?
-                  | E_new           (Ref v) [v]
-                  | E_invoke (InvokeType v) MethodSignature [v]
+                  | ELength        v
+                  | EInstanceOf    v    (Ref v)
+                  | ECast          Type v
+                  | ENewArray      Type v
+                  | ENewMultiArray Type v [v] -- TODO: empty dims?
+                  | ENew           (Ref v) [v]
+                  | EInvoke (InvokeType v) MethodSignature [v]
                   deriving (Eq, Ord, Functor, F.Foldable)
 
-data InvokeType v = I_interface v
-                  | I_special   v
-                  | I_virtual   v
-                  | I_static
+data InvokeType v = IInterface v
+                  | ISpecial   v
+                  | IVirtual   v
+                  | IStatic
                 deriving (Eq, Ord, Show, Functor, F.Foldable)
 
 data MethodSignature = MethodSig
@@ -179,57 +179,57 @@ data MethodSignature = MethodSig
                        }
                      deriving (Eq, Ord, Show)
 
-data Type = T_byte | T_char  | T_int | T_boolean | T_short
-          | T_long | T_float | T_double
-          | T_object B.ByteString | T_addr | T_void
-          | T_array Int Type
-          | T_unknown
+data Type = TByte | TChar  | TInt | TBoolean | TShort
+          | TLong | TFloat | TDouble
+          | TObject B.ByteString | TAddr | TVoid
+          | TArray Int Type
+          | TUnknown
           deriving (Eq, Ord, Show)
 
 
 
 
 instance Show v => Show (Stmt v) where
-  show (S_breakpoint)    = "breakpoint"
+  show (SBreakpoint)    = "breakpoint"
 
-  show (S_assign    x a) = show x ++ " <- " ++ show a
-  show (S_declare t x a) = concat [show t, " ", show x, " <- ", show a]
+  show (SAssign    x a) = show x ++ " <- " ++ show a
+  show (SDeclare t x a) = concat [show t, " ", show x, " <- ", show a]
 
-  show (S_enterMonitor i) = "enterMonitor " ++ show i
-  show (S_exitMonitor  i) = "exitMonitor " ++ show i
+  show (SEnterMonitor i) = "enterMonitor " ++ show i
+  show (SExitMonitor  i) = "exitMonitor " ++ show i
 
-  show (S_goto lbl)      = "goto " ++ show lbl
-  show (S_if con lbl)    = "if (" ++ show con ++ ") " ++ show lbl
-  show (S_ifElse c a b)  = concat ["if (", show c, ") "
+  show (SGoto lbl)      = "goto " ++ show lbl
+  show (SIf con lbl)    = "if (" ++ show con ++ ") " ++ show lbl
+  show (SIfElse c a b)  = concat ["if (", show c, ") "
                                   , show a, " else "
                                   , show b]
 
-  show (S_continue name) = "continue " ++ name
-  show (S_break    name) = "break "    ++ name
+  show (SContinue name) = "continue " ++ name
+  show (SBreak    name) = "break "    ++ name
 
-  show (S_doWhile name body cond) = concat [name, ": do ", show body
+  show (SDoWhile name body cond) = concat [name, ": do ", show body
                                            , " while (", show cond, ")"]
 
-  show (S_lookupSwitch v lbl ls) = "lswitch " ++ show v ++ " " ++ show lbl ++ " " ++ show ls
+  show (SLookupSwitch v lbl ls) = "lswitch " ++ show v ++ " " ++ show lbl ++ " " ++ show ls
 
-  show (S_nop)           = "nop"
+  show (SNop)           = "nop"
 
-  show (S_return mv) = "return (" ++ maybe "" show mv ++ ")"
+  show (SReturn mv) = "return (" ++ maybe "" show mv ++ ")"
 
-  show (S_tableSwitch i lbl ls) = "tswitch" ++ show i ++ " " ++ show lbl ++ " "
+  show (STableSwitch i lbl ls) = "tswitch" ++ show i ++ " " ++ show lbl ++ " "
                                   ++ show ls
 
-  show (S_switch name v cs) = concat [name, ": switch (", show v, ") ", show cs]
+  show (SSwitch name v cs) = concat [name, ": switch (", show v, ") ", show cs]
 
-  show (S_throw i) = "throw " ++ show i
+  show (SThrow i) = "throw " ++ show i
 
-  show (S_try   s t) = "try " ++ show s ++ " -> " ++ show t
-  show (S_catch s _ e) = concat ["catch ", show s, " (", show e, ")"]
+  show (STry   s t) = "try " ++ show s ++ " -> " ++ show t
+  show (SCatch s _ e) = concat ["catch ", show s, " (", show e, ")"]
 
-  show (S_tryCatch body catches finally) =
+  show (STryCatch body catches finally) =
     concat ["tryCatch ", show body, show catches, " finally ", show finally]
 
-  show (S_comment s) = "comment " ++ s
+  show (SComment s) = "comment " ++ s
 
 instance Show v => Show (Variable v) where
   show (VarRef   ref) = '@' : show ref
@@ -242,52 +242,52 @@ instance Show Value where
 
 
 instance Show AccessFlag where
-  show F_public = "public"
-  show F_private = "private"
-  show F_protected = "protected"
-  show F_static = "static"
-  show F_final = "final"
-  show F_synchronized = "synchronized"
-  show F_bridge = "INTERNAL_bridge"
-  show F_varargs = "INTERNAL_varargs"
-  show F_native = "native"
-  show F_abstract = "abstract"
-  show F_strict = "strictfp"
-  show F_synthetic = "INTERNAL_synthetic"
+  show FPublic = "public"
+  show FPrivate = "private"
+  show FProtected = "protected"
+  show FStatic = "static"
+  show FFinal = "final"
+  show FSynchronized = "synchronized"
+  show FBridge = "INTERNAL_bridge"
+  show FVarargs = "INTERNAL_varargs"
+  show FNative = "native"
+  show FAbstract = "abstract"
+  show FStrict = "strictfp"
+  show FSynthetic = "INTERNAL_synthetic"
 
 
 instance Show v => Show (Expression v) where
-  show (E_eq a b) = show a ++ " == " ++ show b
-  show (E_ge a b) = show a ++ " >= " ++ show b
-  show (E_le a b) = show a ++ " <= " ++ show b
-  show (E_ne a b) = show a ++ " /= " ++ show b
-  show (E_lt a b) = show a ++ " < " ++ show b
-  show (E_gt a b) = show a ++ " > " ++ show b
+  show (EEq a b) = show a ++ " == " ++ show b
+  show (EGe a b) = show a ++ " >= " ++ show b
+  show (ELe a b) = show a ++ " <= " ++ show b
+  show (ENe a b) = show a ++ " /= " ++ show b
+  show (ELt a b) = show a ++ " < " ++ show b
+  show (EGt a b) = show a ++ " > " ++ show b
 
-  show (E_add a b) = show a ++ " + " ++ show b
-  show (E_sub a b) = show a ++ " - " ++ show b
-  show (E_and a b) = show a ++ " & " ++ show b
-  show (E_or  a b) = show a ++ " | " ++ show b
-  show (E_xor a b) = show a ++ " ^ " ++ show b
-  show (E_shl a b) = show a ++ " shl " ++ show b
-  show (E_shr a b) = show a ++ " shr " ++ show b
-  show (E_ushl a b) = show a ++ " ushl " ++ show b
-  show (E_ushr a b) = show a ++ " ushr " ++ show b
-  show (E_cmp a b) = show a ++ " cmp " ++ show b
-  show (E_cmpg a b) = show a ++ " cmpg " ++ show b
-  show (E_cmpl a b) = show a ++ " cmpl " ++ show b
+  show (EAdd a b) = show a ++ " + " ++ show b
+  show (ESub a b) = show a ++ " - " ++ show b
+  show (EAnd a b) = show a ++ " & " ++ show b
+  show (EOr  a b) = show a ++ " | " ++ show b
+  show (EXor a b) = show a ++ " ^ " ++ show b
+  show (EShl a b) = show a ++ " shl " ++ show b
+  show (EShr a b) = show a ++ " shr " ++ show b
+  show (EUshl a b) = show a ++ " ushl " ++ show b
+  show (EUshr a b) = show a ++ " ushr " ++ show b
+  show (ECmp a b) = show a ++ " cmp " ++ show b
+  show (ECmpg a b) = show a ++ " cmpg " ++ show b
+  show (ECmpl a b) = show a ++ " cmpl " ++ show b
 
-  show (E_mul a b) = show a ++ " * " ++ show b
-  show (E_div a b) = show a ++ " / " ++ show b
-  show (E_rem a b) = show a ++ " rem " ++ show b
+  show (EMul a b) = show a ++ " * " ++ show b
+  show (EDiv a b) = show a ++ " / " ++ show b
+  show (ERem a b) = show a ++ " rem " ++ show b
 
-  show (E_length a) = "length " ++ show a
-  show (E_cast t a) = "(" ++ show t ++ ") " ++ show a
-  show (E_instanceOf i r) = show i ++ " instanceOf " ++ show r
-  show (E_newArray t i) = "newArray " ++ show t ++ "[" ++ show i ++ "]"
-  show (E_new r as) = "new " ++ show r ++ show as
-  show (E_newMultiArray t i is) = "newMArray " ++ show t ++ "(" ++ show (i, is) ++ ")"
-  show (E_invoke t m ims) = concat ["invoke ", show t, " "
+  show (ELength a) = "length " ++ show a
+  show (ECast t a) = "(" ++ show t ++ ") " ++ show a
+  show (EInstanceOf i r) = show i ++ " instanceOf " ++ show r
+  show (ENewArray t i) = "newArray " ++ show t ++ "[" ++ show i ++ "]"
+  show (ENew r as) = "new " ++ show r ++ show as
+  show (ENewMultiArray t i is) = "newMArray " ++ show t ++ "(" ++ show (i, is) ++ ")"
+  show (EInvoke t m ims) = concat ["invoke ", show t, " "
                                    , show m, " ", show ims]
 
 

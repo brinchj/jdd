@@ -41,12 +41,12 @@ lift2 = lift . lift
 
 constG :: Type -> SGen Constant
 constG t = case t of
-  T_byte    -> C_int     <$> lift2 (choose (-127, 127))
-  T_char    -> C_int     <$> lift2 (choose (-127, 127))
-  T_int     -> C_int     <$> lift2 arbitrary
-  T_boolean -> C_boolean <$> lift2 arbitrary
-  T_float   -> C_float   <$> lift2 arbitrary
-  T_double  -> C_double  <$> lift2 arbitrary
+  TByte    -> CInt     <$> lift2 (choose (-127, 127))
+  TChar    -> CInt     <$> lift2 (choose (-127, 127))
+  TInt     -> CInt     <$> lift2 arbitrary
+  TBoolean -> CBoolean <$> lift2 arbitrary
+  TFloat   -> CFloat   <$> lift2 arbitrary
+  TDouble  -> CDouble  <$> lift2 arbitrary
 
 
 getG type_ = do
@@ -64,34 +64,34 @@ getG type_ = do
         Just ls -> ST.modify $ M.insertWith (++) type_ [prefix ++ (show $ length ls)]
       name <- head <$> fromJust <$> (ST.gets $ M.lookup type_)
       val  <- VConst <$> constG type_
-      W.tell [S_declare type_ (VarLocal $ Local name) val]
+      W.tell [SDeclare type_ (VarLocal $ Local name) val]
       return $ Local name
 
 
 assignG :: SGen ()
 assignG = do
-  name <- getG T_int
+  name <- getG TInt
   val  <- lift2 $ arbitrary
   W.tell [
-    S_assign (VarLocal name) $ VConst $ C_int val]
+    SAssign (VarLocal name) $ VConst $ CInt val]
 
 binaryG :: SGen ()
 binaryG = do
-  a <- getG T_int
-  b <- getG T_int
-  r <- getG T_int
-  op <- lift2 $ elements [E_add, E_sub, E_mul]
-  W.tell [S_assign (VarLocal r) $ VExpr $
+  a <- getG TInt
+  b <- getG TInt
+  r <- getG TInt
+  op <- lift2 $ elements [EAdd, ESub, EMul]
+  W.tell [SAssign (VarLocal r) $ VExpr $
           op (VLocal $ VarLocal a) (VLocal $ VarLocal b)]
 
 
 ifG :: SGen ()
 ifG = do
-  c <- getG T_boolean
+  c <- getG TBoolean
   left  <- inline
   right <- inline
   W.tell [
-    S_ifElse (E_eq (VLocal $ VarLocal c) (VConst $ C_boolean True)) left right]
+    SIfElse (EEq (VLocal $ VarLocal c) (VConst $ CBoolean True)) left right]
 
 
 inline = do
@@ -105,10 +105,10 @@ printAll = do
   vs <- ST.gets M.elems
   W.tell $ map println $ L.sort $ concat vs
 
-println v = S_assign (VarLocal $ Local "_")
-            (VExpr $ E_invoke I_static
+println v = SAssign (VarLocal $ Local "_")
+            (VExpr $ EInvoke IStatic
              (MethodSig (CF.Class "System.out") "println" []
-              [T_object "java/lang/String"] T_void)
+              [TObject "java/lang/String"] TVoid)
              [VLocal $ VarLocal $ Local v])
 
 

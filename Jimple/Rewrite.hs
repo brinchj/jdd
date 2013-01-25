@@ -70,38 +70,38 @@ anyStmt = satisfy $ const True
 
 
 -- | Test if a LabelStmt is a goto
--- >>> goto (Nothing, S_goto (Label 42))
+-- >>> goto (Nothing, SGoto (Label 42))
 -- True
-goto (Nothing, S_goto{}) = True
+goto (Nothing, SGoto{}) = True
 goto                   _ = False
 gotoP = snd <$> satisfy goto
 
 
--- | Test if a LabelStmt contains S_if
--- >>> if_ (Label 21, S_if undefined $ Label 42)
+-- | Test if a LabelStmt contains SIf
+-- >>> if_ (Label 21, SIf undefined $ Label 42)
 -- True
-if_ (_, S_if{}) = True
+if_ (_, SIf{}) = True
 if_           _ = False
 ifP = satisfy if_
 
--- | Test if a LabelStmt contains S_try
--- >>> try_ (Label 21, S_try (0, 0) 0)
+-- | Test if a LabelStmt contains STry
+-- >>> try_ (Label 21, STry (0, 0) 0)
 -- True
-try_ (_, S_try{}) = True
+try_ (_, STry{}) = True
 try_            _ = False
 tryP = satisfy try_
 
--- | Test if a LabelStmt contains S_catch
--- >>> catch_ (Label 21, S_catch (0, 0) (ExceptEntry 0 0 0 0) Nothing)
+-- | Test if a LabelStmt contains SCatch
+-- >>> catch_ (Label 21, SCatch (0, 0) (ExceptEntry 0 0 0 0) Nothing)
 -- True
-catch_ (_, S_catch{}) = True
+catch_ (_, SCatch{}) = True
 catch_              _ = False
 catchP = satisfy catch_
 
--- | Test if a Stmt is a S_lookupSwitch
--- >>> switchStmt $ S_lookupSwitch "name" undefined []
+-- | Test if a Stmt is a SLookupSwitch
+-- >>> switchStmt $ SLookupSwitch "name" undefined []
 -- True
-switchStmt S_lookupSwitch{} = True
+switchStmt SLookupSwitch{} = True
 switchStmt _ = False
 
 switch_ = switchStmt . snd
@@ -119,14 +119,14 @@ labelP = fst <$> label
 
 jumpless = satisfy f
   where
-    f (_, S_goto{}) = False
-    f (_, S_if{}  ) = False
+    f (_, SGoto{}) = False
+    f (_, SIf{}  ) = False
     f (Nothing,  _) = True
     f _             = False
 
 
-jumpLabel (S_goto      lbl) = Just lbl
-jumpLabel (S_if   cond lbl) = Just lbl
+jumpLabel (SGoto      lbl) = Just lbl
+jumpLabel (SIf   cond lbl) = Just lbl
 jumpLabel _ = Nothing
 
 
@@ -141,7 +141,7 @@ mapRewrite rule m = m { methodStmts = go $ methodStmts m }
 
 
 -- | Rewrite a list of LabelStmt
--- >>> rewrite (labelLess >> return []) [(Just 42, S_nop), (Nothing, S_nop)]
+-- >>> rewrite (labelLess >> return []) [(Just 42, SNop), (Nothing, SNop)]
 -- Just [(Just 42,nop)]
 -- >>> rewrite (throwError "rule doesn't match") []
 -- Nothing
@@ -156,26 +156,26 @@ rewrite p = go
         _ -> (head xs:) `fmap` go (tail xs)
 
     goStmt s = case s of
-      S_ifElse cnd left right
+      SIfElse cnd left right
         | Just [left1, right1] <- goAny [left, right] ->
-          Just $ S_ifElse cnd left1 right1
+          Just $ SIfElse cnd left1 right1
 
-      S_doWhile name body cnd
-        | Just body1 <- go body -> Just $ S_doWhile name body1 cnd
+      SDoWhile name body cnd
+        | Just body1 <- go body -> Just $ SDoWhile name body1 cnd
 
-      S_switch name v cs
+      SSwitch name v cs
         | Just result <- goAny $ map snd cs ->
-          Just $ S_switch name v $ zip (map fst cs) result
+          Just $ SSwitch name v $ zip (map fst cs) result
 
-      S_tryCatch body cs fin
-        | Just body1 <- go body -> Just $ S_tryCatch body1 cs fin
+      STryCatch body cs fin
+        | Just body1 <- go body -> Just $ STryCatch body1 cs fin
 
-      S_tryCatch body cs fin
+      STryCatch body cs fin
         | Just css <- goAny $ map snd cs ->
-          Just $ S_tryCatch body (zip (map fst cs) css) fin
+          Just $ STryCatch body (zip (map fst cs) css) fin
 
-      S_tryCatch body cs (Just fin)
-        | Just fin1 <- go fin -> Just $ S_tryCatch body cs $ Just fin1
+      STryCatch body cs (Just fin)
+        | Just fin1 <- go fin -> Just $ STryCatch body cs $ Just fin1
 
       _ -> Nothing
 

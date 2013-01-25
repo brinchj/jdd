@@ -40,12 +40,12 @@ instance TypeableJ Type v where
 
 instance TypeableJ Constant v where
   typeOf c = Left $ case c of
-    C_int    _ -> T_int
-    C_double _ -> T_double
-    C_float  _ -> T_float
-    C_long   _ -> T_long
-    C_string _ -> T_object "java/lang/String"
-    C_null     -> T_unknown
+    CInt    _ -> TInt
+    CDouble _ -> TDouble
+    CFloat  _ -> TFloat
+    CLong   _ -> TLong
+    CString _ -> TObject "java/lang/String"
+    CNull     -> TUnknown
 
 
 
@@ -55,39 +55,39 @@ instance TypeableJ (Variable v) v where
 
 
 isCmp e = case e of
-   E_eq   _ _ -> True
-   E_ge   _ _ -> True
-   E_le   _ _ -> True
-   E_lt   _ _ -> True
-   E_ne   _ _ -> True
-   E_gt   _ _ -> True
-   E_cmp  _ _ -> True
-   E_cmpg _ _ -> True
-   E_cmpl _ _ -> True
+   EEq   _ _ -> True
+   EGe   _ _ -> True
+   ELe   _ _ -> True
+   ELt   _ _ -> True
+   ENe   _ _ -> True
+   EGt   _ _ -> True
+   ECmp  _ _ -> True
+   ECmpg _ _ -> True
+   ECmpl _ _ -> True
    _          -> False
 
 instance (TypeableJ v v) => TypeableJ (Expression v) v where
-  typeOf (E_length v) = Left T_int
-  typeOf (E_cast t v) = Left t
-  typeOf (E_instanceOf v _) = Left T_boolean
-  typeOf (E_newArray t v) = Left $ T_array 1 t
-  typeOf (E_new (R_object c) _args) = Left $ T_object $ CF.classPath c
-  typeOf (E_newMultiArray t v _) = Left $ T_array 0 t
-  typeOf (E_invoke _ sig _) = Left $ methodResult sig
+  typeOf (ELength v) = Left TInt
+  typeOf (ECast t v) = Left t
+  typeOf (EInstanceOf v _) = Left TBoolean
+  typeOf (ENewArray t v) = Left $ TArray 1 t
+  typeOf (ENew (RObject c) _args) = Left $ TObject $ CF.classPath c
+  typeOf (ENewMultiArray t v _) = Left $ TArray 0 t
+  typeOf (EInvoke _ sig _) = Left $ methodResult sig
 
   -- comparisons
-  typeOf e | isCmp e = Left T_boolean
+  typeOf e | isCmp e = Left TBoolean
 
   -- default: binary operators
   typeOf e = limitT $ map typeOf $ F.toList e
 
 
 instance TypeableJ (Ref Value) Value where
-  typeOf R_this = Left $ T_object "<this>"
-  typeOf (R_instanceField _ desc) = Left $ J.typeFromBS' $ CF.descType desc
-  typeOf (R_staticField   _ desc) = Left $ J.typeFromBS' $ CF.descType desc
-  typeOf (R_array (VLocal v) _) = Right (v, \(T_array _ t) -> t)
-  typeOf (R_array (VExpr  e) _) = typeOf e
+  typeOf RThis = Left $ TObject "<this>"
+  typeOf (RInstanceField _ desc) = Left $ J.typeFromBS' $ CF.descType desc
+  typeOf (RStaticField   _ desc) = Left $ J.typeFromBS' $ CF.descType desc
+  typeOf (RArray (VLocal v) _) = Right (v, \(TArray _ t) -> t)
+  typeOf (RArray (VExpr  e) _) = typeOf e
 
   typeOf s = error $ "TypeableJ ref: " ++ show s
 
@@ -116,7 +116,7 @@ simpleTyper (meth@(Method sig ls is ms me)) =
       let go' = mapM (isolate . go)
       let def = return s1
       s2 <- case s1 of
-        S_assign (VarLocal v) e -> do
+        SAssign (VarLocal v) e -> do
           mt0 <- get v
           flip (flip maybe $ const def) mt0 $ do
             x <- isJust <$> (ST.gets $ M.lookup v . snd)
@@ -124,16 +124,16 @@ simpleTyper (meth@(Method sig ls is ms me)) =
             mt1 <- get v
             return $ flip (maybe s1) mt1 $ \t1 ->
               if x then s1 else
-                S_declare t1 (VarLocal v) e
+                SDeclare t1 (VarLocal v) e
 
-        S_ifElse c left right -> liftM2 (S_ifElse c) (go' left) (go' right)
-        S_switch n e ls       -> liftM (S_switch n e) $ handleSwitch ls
-        S_doWhile n body v    -> liftM (flip (S_doWhile n) v) (go' body)
-        S_tryCatch body cs0 mfn -> do
+        SIfElse c left right -> liftM2 (SIfElse c) (go' left) (go' right)
+        SSwitch n e ls       -> liftM (SSwitch n e) $ handleSwitch ls
+        SDoWhile n body v    -> liftM (flip (SDoWhile n) v) (go' body)
+        STryCatch body cs0 mfn -> do
           let fnM = case mfn of
                 Just fn -> Just <$> go' fn
                 Nothing -> return $ Nothing
-          liftM3 S_tryCatch (go' body) (handleExcepts cs0) fnM
+          liftM3 STryCatch (go' body) (handleExcepts cs0) fnM
 
         _ -> def
 
@@ -145,7 +145,7 @@ simpleTyper (meth@(Method sig ls is ms me)) =
 
     handleExcepts cs = forM cs $ \(exc, body) -> isolate $ do
       let go' = mapM go
-      set (Local "exc") $ Left $ T_object $ CF.classPath exc
+      set (Local "exc") $ Left $ TObject $ CF.classPath exc
       (exc,) <$> go' body
 
 
@@ -188,6 +188,6 @@ simpleTyper (meth@(Method sig ls is ms me)) =
                 | otherwise -> findMatch t nms
 
     typeOf' t = case typeOf t of
-      Left (T_object "<this>") ->
-        Left $ T_object $ CF.classPath $ methodClass sig
+      Left (TObject "<this>") ->
+        Left $ TObject $ CF.classPath $ methodClass sig
       t1 -> t1

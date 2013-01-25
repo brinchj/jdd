@@ -27,7 +27,7 @@ import qualified Parser as CF
 
 
 -- s1 <- staticField
--- invoke I_special this MethodSig
+-- invoke ISpecial this MethodSig
 -- return ()
 
 --
@@ -52,51 +52,51 @@ str = B.unpack
 
 
 -- constant
-const (C_double d)  = show d
-const (C_float  f)  = show f
-const (C_int    i)  = show i
-const (C_long   l)  = show l
-const (C_string s)  = show s
-const C_null        = "NULL"
-const (C_boolean b) = if b then "true" else "false"
+const (CDouble d)  = show d
+const (CFloat  f)  = show f
+const (CInt    i)  = show i
+const (CLong   l)  = show l
+const (CString s)  = show s
+const CNull        = "NULL"
+const (CBoolean b) = if b then "true" else "false"
 
 -- types
 type_ t = case t of
-  T_array n tp -> concat $ type_ tp:replicate n "[]"
-  T_object cp  -> path cp
-  T_void -> "void"
-  T_byte -> "byte"
-  T_char -> "char"
-  T_int  -> "int"
-  T_boolean -> "boolean"
-  T_float -> "float"
-  T_double -> "double"
+  TArray n tp -> concat $ type_ tp:replicate n "[]"
+  TObject cp  -> path cp
+  TVoid -> "void"
+  TByte -> "byte"
+  TChar -> "char"
+  TInt  -> "int"
+  TBoolean -> "boolean"
+  TFloat -> "float"
+  TDouble -> "double"
   foo -> show foo
 
 
 -- expression
 expr e = case e of
-  E_eq a b -> op "==" a b
-  E_ge a b -> op ">=" a b
-  E_le a b -> op "<=" a b
-  E_lt a b -> op "<"  a b
-  E_ne a b -> op "!=" a b
-  E_gt a b -> op ">"  a b
+  EEq a b -> op "==" a b
+  EGe a b -> op ">=" a b
+  ELe a b -> op "<=" a b
+  ELt a b -> op "<"  a b
+  ENe a b -> op "!=" a b
+  EGt a b -> op ">"  a b
 
-  E_add a b -> op "+" a b
-  E_sub a b -> op "-" a b
-  E_mul a b -> op "*" a b
-  E_div a b -> op "/" a b
+  EAdd a b -> op "+" a b
+  ESub a b -> op "-" a b
+  EMul a b -> op "*" a b
+  EDiv a b -> op "/" a b
 
-  E_rem a b -> op "%" a b
+  ERem a b -> op "%" a b
 
-  E_length a -> value a ++ ".length"
+  ELength a -> value a ++ ".length"
 
-  E_new rf args -> concat $ ["new ", ref rf, "("] ++ map value args ++ [")"]
-  E_newArray t i -> concat ["new ", type_ t, "[", value i, "]"]
+  ENew rf args -> concat $ ["new ", ref rf, "("] ++ map value args ++ [")"]
+  ENewArray t i -> concat ["new ", type_ t, "[", value i, "]"]
 
-  E_invoke it (MethodSig cp nm pars res _) args ->
-    let path1 = if it == I_static then path $ classPath cp else invoke it in
+  EInvoke it (MethodSig cp nm pars res _) args ->
+    let path1 = if it == IStatic then path $ classPath cp else invoke it in
     if nm == "<init>" then
       path1 ++ intercalate "," (map value args)
     else
@@ -110,19 +110,19 @@ expr e = case e of
 
 -- flip a bool expression
 flipExpr :: Expression Value -> Expression Value
-flipExpr (E_eq a b) = E_ne a b -- =  to /=
-flipExpr (E_ge a b) = E_lt a b -- >= to <
-flipExpr (E_le a b) = E_gt a b -- <= to >
-flipExpr (E_lt a b) = E_ge a b -- <  to >=
-flipExpr (E_ne a b) = E_eq a b -- /= to  =
-flipExpr (E_gt a b) = E_le a b -- >  to <=
-flipExpr e = E_eq (VExpr e) $ VConst $ C_boolean False
+flipExpr (EEq a b) = ENe a b -- =  to /=
+flipExpr (EGe a b) = ELt a b -- >= to <
+flipExpr (ELe a b) = EGt a b -- <= to >
+flipExpr (ELt a b) = EGe a b -- <  to >=
+flipExpr (ENe a b) = EEq a b -- /= to  =
+flipExpr (EGt a b) = ELe a b -- >  to <=
+flipExpr e = EEq (VExpr e) $ VConst $ CBoolean False
 
 
 -- invoke
-invoke (I_virtual   v) = value v
-invoke (I_special   v) = value v
-invoke (I_interface v) = value v
+invoke (IVirtual   v) = value v
+invoke (ISpecial   v) = value v
+invoke (IInterface v) = value v
 
 
 -- variable
@@ -132,11 +132,11 @@ var (VarLocal l) = show l
 
 -- reference
 ref r = case r of
-  R_instanceField v (Desc nm _type) -> concat [value v, ".", str nm]
-  R_staticField (Class cp) (Desc nm tp) -> concat [path cp, ".", str nm]
-  R_array v i -> concat [value v, "[", value i, "]"]
-  R_object cl -> path (classPath cl)
-  R_this -> "this"
+  RInstanceField v (Desc nm _type) -> concat [value v, ".", str nm]
+  RStaticField (Class cp) (Desc nm tp) -> concat [path cp, ".", str nm]
+  RArray v i -> concat [value v, "[", value i, "]"]
+  RObject cl -> path (classPath cl)
+  RThis -> "this"
   _ -> error $ "Cogen.Java.Jimple, ref: " ++ show r
 
 -- value
@@ -149,23 +149,23 @@ inline s = code
     Java code = toJava s
 
 stmtToJava s = case s of
-  S_nop -> Java []
+  SNop -> Java []
 
 
-  S_assign v val | var v == "_" -> line $ value val ++ " /* empty assign */ "
-  S_assign v val -> line $ var v ++ " = " ++ value val
+  SAssign v val | var v == "_" -> line $ value val ++ " /* empty assign */ "
+  SAssign v val -> line $ var v ++ " = " ++ value val
 
-  S_declare t v val -> line $ concat [type_ t, " ", var v, " = ", value val]
+  SDeclare t v val -> line $ concat [type_ t, " ", var v, " = ", value val]
 
-  S_return mv -> line $ concat ["return ", maybe "" value mv]
+  SReturn mv -> line $ concat ["return ", maybe "" value mv]
 
-  S_doWhile nm body v -> Java [
+  SDoWhile nm body v -> Java [
     JavaBlock (nm ++ ": do ") (inline body) (concat [" while (", value v, ");"])]
 
-  S_break nm -> line $ "break " ++ nm
-  S_continue nm -> line $ "continue " ++ nm
+  SBreak nm -> line $ "break " ++ nm
+  SContinue nm -> line $ "continue " ++ nm
 
-  S_ifElse e0 left0 right0 -> Java $ execWriter $ do
+  SIfElse e0 left0 right0 -> Java $ execWriter $ do
     -- Flip condition when "main" body is empty (else is non-empty)
     let (e1, left1, right1) = if not $ null left0 then (e0, left0, right0)
                               else (flipExpr e0, right0, left0)
@@ -173,7 +173,7 @@ stmtToJava s = case s of
     unless (null right1) $
       tell [JavaBlock "else " (inline right1) ""]
 
-  S_switch nm v ls ->
+  SSwitch nm v ls ->
     -- Regular cases
     let cases = [ JavaStmt (-4) (concat ["case ", show i, ":"]) : inline stmts
                 | (Just i, stmts) <- ls ] in
@@ -184,7 +184,7 @@ stmtToJava s = case s of
       JavaBlock (concat [nm, ": switch(", value v, ") "]) (inline $ cases ++ def) ""
     ]
 
-  S_tryCatch bd cs mfn ->
+  STryCatch bd cs mfn ->
     -- Regular catch
     let catches = [ JavaBlock
                     (concat ["catch (", path $ classPath e, " exc) "])
@@ -197,9 +197,9 @@ stmtToJava s = case s of
       JavaBlock "try " (inline bd) ""
       ] ++ catches ++ finally
 
-  S_throw exc -> line $ "throw " ++ value exc
+  SThrow exc -> line $ "throw " ++ value exc
 
-  S_comment s -> Java [JavaStmt 0 $ "/* " ++ s ++ " */"]
+  SComment s -> Java [JavaStmt 0 $ "/* " ++ s ++ " */"]
 
   -- foo -> error $ "stmtToJava: Unknown statement " ++ show foo
   foo -> Java [JavaStmt 0 $ "// unknown statement " ++ show foo]
@@ -240,7 +240,7 @@ methodToJava (Method sig locals0 idents stmts excs) =
 
     ns = if isStatic then [0..] else [1..]
 
-    isStatic = F_static `elem` methodAccess
+    isStatic = FStatic `elem` methodAccess
 
     MethodSig{..} = sig
 

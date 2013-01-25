@@ -41,9 +41,9 @@ mapS f ls = map go ls
     go (mlbl, stmt) = f (mlbl, stmt')
       where
         stmt' = case stmt of
-          S_ifElse  cnd  l r  -> S_ifElse  cnd    (map go l) (map go r)
-          S_doWhile name b c  -> S_doWhile name   (map go b) c
-          S_switch  name v cs -> S_switch  name v [(c, map go s) | (c, s) <- cs]
+          SIfElse  cnd  l r  -> SIfElse  cnd    (map go l) (map go r)
+          SDoWhile name b c  -> SDoWhile name   (map go b) c
+          SSwitch  name v cs -> SSwitch  name v [(c, map go s) | (c, s) <- cs]
           _                   -> stmt
 
 -- Like mapS but returns values of f isntead of replacing inside the structure
@@ -56,9 +56,9 @@ foldS f zero ls = F.foldl' go zero ls
       where
         acc1 = f acc0 (mlbl, stmt)
         acc2 = case stmt of
-          S_ifElse  _ l r  -> F.foldl' go (F.foldl' go acc1 l) r
-          S_doWhile _ b _  -> F.foldl' go acc1 b
-          S_switch  _ _ cs -> F.foldl' go acc1 $ L.concat $ map snd cs
+          SIfElse  _ l r  -> F.foldl' go (F.foldl' go acc1 l) r
+          SDoWhile _ b _  -> F.foldl' go acc1 b
+          SSwitch  _ _ cs -> F.foldl' go acc1 $ L.concat $ map snd cs
           _                -> acc1
 
 
@@ -71,19 +71,19 @@ mapFix f v = snd $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
 -- StringBuilder.append("") does nothing
 mapAppendEmpty m = m { methodStmts = map go $ methodStmts m }
   where
-    go (l, S_assign r (VExpr (E_invoke (I_virtual v) sig [VConst (C_string "")])))
+    go (l, SAssign r (VExpr (EInvoke (IVirtual v) sig [VConst (CString "")])))
       | methodClass  sig == CF.Class "java/lang/StringBuilder" &&
         methodName   sig == "append" &&
-        methodParams sig == [T_object "java/lang/String"] =
-          (l, S_assign r v)
+        methodParams sig == [TObject "java/lang/String"] =
+          (l, SAssign r v)
 
     go s = s
 
 -- Identify pure values (no side-effects, used for inlining and cleaning)
-pureValue (VExpr (E_invoke _ _ _)) = False
-pureValue (VExpr (E_new r _args)) = case r of
-  R_instanceField _ _ -> True
-  R_staticField   _ _ -> True
+pureValue (VExpr (EInvoke _ _ _)) = False
+pureValue (VExpr (ENew r _args)) = case r of
+  RInstanceField _ _ -> True
+  RStaticField   _ _ -> True
   _ -> False
 pureValue _ = True
 
@@ -93,17 +93,17 @@ mapCleanup m = m { methodStmts = go $ methodStmts m }
   where
     go s = reverse $ catMaybes $ ST.evalState (mapM go' $ reverse s) S.empty
 
-    go' (l@(label, s@(S_assign (VarLocal v@(Local ('s':_))) e))) = do
+    go' (l@(label, s@(SAssign (VarLocal v@(Local ('s':_))) e))) = do
       alive <- ST.gets $ S.member v
       when alive $ addAlive s
       let canRemove = not alive && pureValue e
       case label of
         Nothing | canRemove -> return Nothing
-        Just _  | canRemove -> return $ Just (label, S_nop)
+        Just _  | canRemove -> return $ Just (label, SNop)
         _ -> return $ Just l
 
     -- remove dead lines
-    go' (Nothing, S_nop) = return Nothing
+    go' (Nothing, SNop) = return Nothing
 
     go' (l@(_, st)) = addAlive st >> return (Just l)
 
@@ -131,7 +131,7 @@ mapInline m = m { methodStmts = go $ methodStmts m }
     inline m (VLocal v) = VLocal $ inline m `fmap` v
     inline m e = e
 
-    update (S_assign v e) | pureValue e = ST.modify $ M.insert v e
+    update (SAssign v e) | pureValue e = ST.modify $ M.insert v e
     update _                            = return ()
 
 
@@ -145,15 +145,15 @@ mapCorrectLabels m = m { methodStmts = go $ methodStmts m }
        f (Just l, s) | l `elem` labels = (Just l,  s)
        f (_     , s)                   = (Nothing, s)
 
-    go' (Just pos, S_if c next) = tellLabel (S_if c) pos next
-    go' (Just pos, S_goto next) = tellLabel S_goto   pos next
-    go' (Just pos, S_lookupSwitch v lbl cs) = do
+    go' (Just pos, SIf c next) = tellLabel (SIf c) pos next
+    go' (Just pos, SGoto next) = tellLabel SGoto   pos next
+    go' (Just pos, SLookupSwitch v lbl cs) = do
       let cs'  = map (second (+pos)) cs
       let lbl' = pos + lbl
       W.tell $ lbl' : map snd cs'
-      return (Just pos, S_lookupSwitch v lbl' cs')
+      return (Just pos, SLookupSwitch v lbl' cs')
 
-    -- TODO: S_tableSwitch
+    -- TODO: STableSwitch
     go' s = return s
 
 
@@ -168,16 +168,16 @@ mapCorrectInit m = m { methodStmts = go $ methodStmts m }
     go s = catMaybes $ ST.evalState (mapM goM s) M.empty
 
     goM stmt@(lbl, s) = case s of
-      S_assign v (VExpr (E_new (R_object cl) [])) -> do
+      SAssign v (VExpr (ENew (RObject cl) [])) -> do
         ST.modify $ M.insert cl v
         return $ Nothing
 
-      S_assign _ (VExpr
-                  (E_invoke
-                   (I_special (VLocal v))
+      SAssign _ (VExpr
+                  (EInvoke
+                   (ISpecial (VLocal v))
                    (MethodSig cl "<init>" _fs _ts _rt) pars)) -> do
         realv <- fromMaybe v <$> (ST.gets $ M.lookup cl)
-        return $ Just (lbl, S_assign realv (VExpr (E_new (R_object cl) pars)))
+        return $ Just (lbl, SAssign realv (VExpr (ENew (RObject cl) pars)))
 
       _ -> return $ Just stmt
 
@@ -195,18 +195,18 @@ mapCorrectInit m = m { methodStmts = go $ methodStmts m }
 -- > 2: ...
 -- > 3:
 mapElimGoto = mapRewrite $ do
-  S_goto lbl2 <- gotoP
+  SGoto lbl2 <- gotoP
   body1Top@(Just lbl1, _) <- label
 
   body1 <- many jumpless
 
-  S_goto lbl3 <- gotoP
+  SGoto lbl3 <- gotoP
   body2Top@(Just lbl2', _) <- label
   guard $ lbl2 == lbl2'
 
   body2 <- many jumpless
 
-  S_goto lbl1' <- gotoP
+  SGoto lbl1' <- gotoP
   guard $ lbl1 == lbl1'
 
   -- check ending (not counted)
@@ -228,23 +228,23 @@ mapElimGoto = mapRewrite $ do
 --   > ... body2
 --   > lbl2: } ==> if cond body2 body1
 mapGotoIf = mapRewrite $ do
-  (ifLbl, S_if cond lbl1) <- ifP
+  (ifLbl, SIf cond lbl1) <- ifP
   body1 <- bodyM lbl1
   next  <- anyStmt
   case next of
     -- if with else part: if cond 1 ... goto 2, 1: ... 2:
-    (_, S_goto lbl2) -> do
+    (_, SGoto lbl2) -> do
       body2 <- bodyM lbl2
-      return [(ifLbl, S_ifElse cond body2 body1)]
+      return [(ifLbl, SIfElse cond body2 body1)]
 
     -- if with no else
     (Just lbl', _) | lbl' == lbl1 ->
-      return [(ifLbl, S_ifElse cond [] body1), next]
+      return [(ifLbl, SIfElse cond [] body1), next]
 
     _ -> E.throwError "mapGotoIf: mismatch"
 
   where
-    bodyS lbl (_, S_goto _) = False
+    bodyS lbl (_, SGoto _) = False
     bodyS lbl (mlbl,     _) = mlbl /= Just lbl
 
     bodyM lbl = many $ satisfy $ bodyS lbl
@@ -281,15 +281,15 @@ mapWhile  m = m { methodStmts = go $ methodStmts m }
 
           next@(lblNext, stmtNext) <- anyStmt
           -- Setup break/continue statements
-          let labels = maybe id (`M.insert` S_break name) lblNext $
-                       M.fromList [(lblStart, S_continue name :: Stmt Value)]
+          let labels = maybe id (`M.insert` SBreak name) lblNext $
+                       M.fromList [(lblStart, SContinue name :: Stmt Value)]
           -- Rewrite labels inside body
           let body' = (Nothing, stmtStart) : replaceLabels labels body
           let cnd = case stmtEnd of
-                S_goto _    -> VConst $ C_boolean True
-                S_if cnd' _ -> VExpr cnd'
+                SGoto _    -> VConst $ CBoolean True
+                SIf cnd' _ -> VExpr cnd'
           -- Construct doWhile
-          return [(Just lblStart, S_doWhile name body' cnd), next]
+          return [(Just lblStart, SDoWhile name body' cnd), next]
         _ -> E.throwError "mapWhile: No backreference here"
 
     addRef refs line key = M.adjust (second (line:)) key refs
@@ -306,8 +306,8 @@ replaceLabels labels = mapS go
     go (mlbl, stmt) = (mlbl, stmt')
       where
         stmt' = case stmt of
-          S_goto   lbl -> fromMaybe stmt $ getL lbl
-          S_if cnd lbl -> maybe stmt (\s -> S_ifElse cnd [(Nothing, s)] []) $
+          SGoto   lbl -> fromMaybe stmt $ getL lbl
+          SIf cnd lbl -> maybe stmt (\s -> SIfElse cnd [(Nothing, s)] []) $
                           getL lbl
           _            -> stmt
 
@@ -323,7 +323,7 @@ replaceLabels labels = mapS go
 -- > switch v [(case0, body0), (case1, body1), (case2, body2))]
 mapSwitch = mapRewrite $ do
   name <- (("switch_"++).show) <$> sourceLine <$> getPosition
-  (lblStart, S_lookupSwitch v lblDef cs0) <- switchP
+  (lblStart, SLookupSwitch v lblDef cs0) <- switchP
 
   -- Group statements according to case
   let cs1 = map (first Just) cs0 ++ [(Nothing, lblDef)]
@@ -343,12 +343,12 @@ mapSwitch = mapRewrite $ do
       defaultS <- if lbl > lblDef then upTo lbl else return []
       -- Replace break-labels and build new statement lists
       return $
-        map (second (replaceLabels $ M.fromList [(lbl, S_break name)])) $
+        map (second (replaceLabels $ M.fromList [(lbl, SBreak name)])) $
         cs2 ++ [(Nothing, defaultS)]
     Nothing  -> return cs2
 
   -- Return rewritten statement
-  return [(lblStart, S_switch name v cs3)]
+  return [(lblStart, SSwitch name v cs3)]
   where
     go ((n0, _), (n1, l1)) = do
       body <- upTo l1
@@ -357,7 +357,7 @@ mapSwitch = mapRewrite $ do
     upTo lbl = do
       body <- many labelLess
       stmt@(Just lbl0, s) <- label
-      let body' = body ++ if s == S_nop then [] else [stmt]
+      let body' = body ++ if s == SNop then [] else [stmt]
       if | lbl0 /= lbl -> ((body++).(stmt:)) <$> upTo lbl
          | otherwise   -> return body'
 
@@ -366,17 +366,17 @@ db x = traceShow x x
 
 
 mapTryCatch = mapRewrite $ do
-  (mlbl1, S_try sid lastTarget) <- tryP
+  (mlbl1, STry sid lastTarget) <- tryP
   -- Parse try-body
   body1 <- readBody
   -- Parse catch cases (including finally)
   (catches, finally) <- partitionEithers <$> many1 (catch1 sid)
   -- Return tryCatch
-  return [(mlbl1, S_tryCatch body1 catches $ listToMaybe finally)]
+  return [(mlbl1, STryCatch body1 catches $ listToMaybe finally)]
 
   where
     catch1 sid = try $ do
-      (Nothing, S_catch sid' _ mexc) <- catchP
+      (Nothing, SCatch sid' _ mexc) <- catchP
       guard $ sid' == sid
       body <- readBody
       return $ case mexc of
@@ -387,15 +387,15 @@ mapTryCatch = mapRewrite $ do
       ms <- optionMaybe $ satisfy $ not . catch_
       let stmt = maybe (return []) (return.(:[])) ms
       case ms of
-        (Just (_, S_try{}   )) -> E.throwError "Need to fix inner try first!"
-        (Just (_, S_goto{}  )) -> return []
-        (Just (_, S_return{})) -> stmt
-        (Just (_, S_throw{} )) -> stmt
+        (Just (_, STry{}   )) -> E.throwError "Need to fix inner try first!"
+        (Just (_, SGoto{}  )) -> return []
+        (Just (_, SReturn{})) -> stmt
+        (Just (_, SThrow{} )) -> stmt
         Nothing                -> stmt
         _                      -> liftM2 (++) stmt readBody
 
 mapFixFinally = mapRewrite $ do
-  (mlbl, s0@(S_tryCatch body0 catches0 (Just finally0))) <- anyStmt
+  (mlbl, s0@(STryCatch body0 catches0 (Just finally0))) <- anyStmt
   guard $ length finally0 > 2
   guard $ throw_ $ snd $ last finally0
   let
@@ -408,13 +408,13 @@ mapFixFinally = mapRewrite $ do
     -- Clean recursively
     body2    = deep  clean body1
     catches2 = deep2 clean catches1
-  return [(mlbl, S_tryCatch body2 catches2 $ Just finally1)]
+  return [(mlbl, STryCatch body2 catches2 $ Just finally1)]
   where
-    throw_ S_throw{} = True
+    throw_ SThrow{} = True
     throw_ _         = False
 
     delFinally _   []   = []
-    delFinally fin body | s@(_, S_throw  _) <- last body = body
+    delFinally fin body | s@(_, SThrow  _) <- last body = body
     delFinally fin body | fin == ending0 = prefix0
                         | fin == init ending1 = prefix1 ++ [last ending0]
                         | otherwise = body
@@ -429,19 +429,19 @@ mapFixFinally = mapRewrite $ do
     deep clean = mapS (f clean)
 
     f clean (mlbl, s) = (mlbl,) $ case s of
-      S_tryCatch body catches mfinally ->
-        S_tryCatch
+      STryCatch body catches mfinally ->
+        STryCatch
           (dclean body)
           (map (second dclean) catches)
           (dclean `fmap` mfinally)
-      S_ifElse cnd left right -> S_ifElse cnd (dclean left) (dclean right)
-      S_doWhile nm body cnd -> S_doWhile nm (dclean body) cnd
+      SIfElse cnd left right -> SIfElse cnd (dclean left) (dclean right)
+      SDoWhile nm body cnd -> SDoWhile nm (dclean body) cnd
       _ -> s
       where
         dclean = deep clean . clean
 
     -- fixBody f (lbl, s) = (lbl,) $ case s of
-    --   S_tryCatch bd cs -> S_tryCatch (go bd) (go' cs)
+    --   STryCatch bd cs -> STryCatch (go bd) (go' cs)
     --   _                -> s
     --   where
     --     go   x = map (fixBody f) $ f x

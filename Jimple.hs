@@ -41,19 +41,19 @@ typeP :: Parser Type
 typeP = try $ do
   tag <- anyChar
   case tag of
-    'B' -> return T_byte
-    'C' -> return T_char
-    'D' -> return T_double
-    'F' -> return T_float
-    'I' -> return T_int
-    'J' -> return T_long
-    'S' -> return T_short
-    'Z' -> return T_boolean
-    'V' -> return T_void
-    'L' -> T_object . B.pack <$> anyChar `manyTill` char ';'
+    'B' -> return TByte
+    'C' -> return TChar
+    'D' -> return TDouble
+    'F' -> return TFloat
+    'I' -> return TInt
+    'J' -> return TLong
+    'S' -> return TShort
+    'Z' -> return TBoolean
+    'V' -> return TVoid
+    'L' -> TObject . B.pack <$> anyChar `manyTill` char ';'
     '[' -> do
       dims <- length <$> option [] (many1 $ char '[')
-      T_array (dims + 1) <$> typeP
+      TArray (dims + 1) <$> typeP
     _   -> fail $ "Unknown type tag: " ++ show tag
 
 methodTypeP :: Parser ([Type], Type)
@@ -72,20 +72,20 @@ methodTypeFromBS' = either (error.show) id . methodTypeFromBS
 
 -- | Parse Type from ByteString
 -- >>> typeFromBS (B.pack "I")
--- Right T_int
+-- Right TInt
 -- >>> typeFromBS (B.pack "[[D]]")
--- Right (T_array 2 T_double)
+-- Right (TArray 2 TDouble)
 typeFromBS :: B.ByteString -> Either ParseError Type
 typeFromBS = runP typeP () "typeFromBS"
 
 
--- | Parse Type from ByteString and return T_unknown on error
+-- | Parse Type from ByteString and return TUnknown on error
 -- >>> typeFromBS' (B.pack "I")
--- T_int
+-- TInt
 -- >>> typeFromBS' B.empty
--- T_unknown
+-- TUnknown
 typeFromBS' :: B.ByteString -> Type
-typeFromBS' = either (const T_unknown) id . typeFromBS
+typeFromBS' = either (const TUnknown) id . typeFromBS
 
 
 methodSigP :: ([Type] -> Type -> MethodSignature) -> Parser MethodSignature
@@ -93,7 +93,7 @@ methodSigP meth = liftM2 meth paramsP resultP
   where
     paramsP = between (char '(') (char ')') $ P.many $ try typeP
     resultP = choice [try typeP, try voidP]
-    voidP = char 'V' >> return T_void
+    voidP = char 'V' >> return TVoid
 
 
 methodSigFromBS bs meth = runP (methodSigP meth) () "methodSig" bs
@@ -145,7 +145,7 @@ byteCodeP excTable codeLength = do
 
       -- Handle try
       F.forM_ (fromStart excTable pos) $ \exc ->
-        append $ S_try (pos, exceptTo exc) $ exceptTarget exc
+        append $ STry (pos, exceptTo exc) $ exceptTarget exc
 
       -- Handle catch
       F.forM_ (fromTarget excTable pos) catch
@@ -159,38 +159,38 @@ byteCodeP excTable codeLength = do
     catch (ee@(ExceptEntry start to _ eid)) = do
       mx <- if eid == 0 then return Nothing else getCP eid
       let x = (\(CF.ClassRef x) -> x) `fmap` mx
-      append $ S_catch (start, to) ee x
+      append $ SCatch (start, to) ee x
       void $ pushL $! VarLocal $! Local "exc"
 
 
     parse code = case code of
       -- NOP: needed to maintain correct line count for goto
-      0x00 -> append S_nop
+      0x00 -> append SNop
 
       -- ACONST_NULL: @null@
-      0x01 -> void $ push $! VConst C_null
+      0x01 -> void $ push $! VConst CNull
 
       -- ICONST_#: constants -1 to 5
       _ | code `elem` [0x02..0x08] ->
-        void $ push $! VConst $! C_int $! fromIntegral $! code - 3
+        void $ push $! VConst $! CInt $! fromIntegral $! code - 3
 
       -- LCONST_#: long constants 0L to 1L
-      0x09 -> void $ push $! VConst $! C_long 0
-      0x0a -> void $ push $! VConst $! C_long 1
+      0x09 -> void $ push $! VConst $! CLong 0
+      0x0a -> void $ push $! VConst $! CLong 1
 
       -- FCONST_#: float constants 0.0f to 2.0f
       _ | code `elem` [0x0b, 0x0c, 0x0d] ->
-        void $ push $! VConst $! C_float $! fromIntegral $! code - 0x0b
+        void $ push $! VConst $! CFloat $! fromIntegral $! code - 0x0b
 
       -- DCONST_#: double constants 0.0 to 1.0
-      0x0e -> void $ push $! VConst $! C_double 0.0
-      0x0f -> void $ push $! VConst $! C_double 1.0
+      0x0e -> void $ push $! VConst $! CDouble 0.0
+      0x0f -> void $ push $! VConst $! CDouble 1.0
 
       -- BIPUSH: signed byte to stack as int
-      0x10 -> void . push =<< VConst . C_int <$> s1
+      0x10 -> void . push =<< VConst . CInt <$> s1
 
       -- SIPUSH: signed short to stack as int
-      0x11 -> void . push =<< VConst . C_int <$> s2
+      0x11 -> void . push =<< VConst . CInt <$> s2
 
       -- LDC#: push from constant pool (String, int, float) + wide / double
       -- TODO: Add support for other types than String (Str)
@@ -217,12 +217,12 @@ byteCodeP excTable codeLength = do
       -- ?STORE: store value in local variable #, int to object ref
       _ | code `elem` [0x36..0x3a] -> do
         var <- u1
-        append =<< S_assign (getLocal var) . VLocal <$> pop
+        append =<< SAssign (getLocal var) . VLocal <$> pop
 
 
       -- ?STORE_#: store int value from stack in local variable 0 to 3
       _ | code `elem` [0x3b..0x4e] ->
-        append =<< S_assign (getLocal var) . VLocal <$> pop
+        append =<< SAssign (getLocal var) . VLocal <$> pop
         where
           val = code - 0x3b
           var = val `mod` 4
@@ -263,27 +263,27 @@ byteCodeP excTable codeLength = do
       0x5f -> mapM_ pushL =<< replicateM 2 pop
 
       -- IADD: add two ints
-      0x60 -> void $ push =<< VExpr <$> apply2 E_add
+      0x60 -> void $ push =<< VExpr <$> apply2 EAdd
 
       -- ISUB: sub two ints
-      0x64 -> void $ push =<< VExpr <$> apply2 E_sub
+      0x64 -> void $ push =<< VExpr <$> apply2 ESub
 
       -- IMUL: multiply two ints
-      0x68 -> void $ push =<< VExpr <$> apply2 E_mul
+      0x68 -> void $ push =<< VExpr <$> apply2 EMul
 
       -- IDIV: divide two ints
-      0x6c -> void $ push =<< VExpr <$> apply2 E_div
+      0x6c -> void $ push =<< VExpr <$> apply2 EDiv
 
       -- IREM: rem two ints
-      0x70 -> void $ push =<< VExpr <$> apply2 E_rem
+      0x70 -> void $ push =<< VExpr <$> apply2 ERem
 
       -- IAND: and two ints
-      0x7e -> void $ push =<< VExpr <$> apply2 E_and
+      0x7e -> void $ push =<< VExpr <$> apply2 EAnd
 
       -- IINC: increment by constant
       0x84 -> do (idx, val) <- liftM2 (,) u1 s1
-                 append $! S_assign (getLocal idx) $! VExpr $!
-                   E_add (VLocal $! getLocal idx) $! VConst $! C_int val
+                 append $! SAssign (getLocal idx) $! VExpr $!
+                   EAdd (VLocal $! getLocal idx) $! VConst $! CInt val
 
       -- ?2?: convert types
       _ | code `elem` [0x85..0x93] ->
@@ -291,14 +291,14 @@ byteCodeP excTable codeLength = do
 
       -- IF??: int cmp with zero, eq to le
       _ | code `elem` [0x99..0x9e] ->
-        ifz $[E_eq, E_ne, E_lt, E_ge, E_gt, E_le] !! (code - 0x99)
+        ifz $[EEq, ENe, ELt, EGe, EGt, ELe] !! (code - 0x99)
 
       -- IF_ICMP??: int cmp, eq to le
       _ | code `elem` [0x9f..0xa4] ->
-        if2 $ [E_eq, E_ne, E_lt, E_ge, E_gt, E_le] !! (code - 0x9f)
+        if2 $ [EEq, ENe, ELt, EGe, EGt, ELe] !! (code - 0x9f)
 
       -- GOTO: unconditional jump
-      0xa7 -> append =<< S_goto <$> label2
+      0xa7 -> append =<< SGoto <$> label2
 
       -- LOOKUPSWITCH: switch statement
       0xab -> do
@@ -315,33 +315,33 @@ byteCodeP excTable codeLength = do
         npairs <- fromIntegral <$> s4
         pairs <- replicateM npairs $ liftM2 (,) s4 (Label <$> s4)
         -- build lookupSwitch
-        append $! S_lookupSwitch v defaultByte $ L.sortBy (comparing snd) pairs
+        append $! SLookupSwitch v defaultByte $ L.sortBy (comparing snd) pairs
 
       -- IRETURN: return int value from stack
-      0xac -> append =<< S_return . Just . VLocal <$> pop
+      0xac -> append =<< SReturn . Just . VLocal <$> pop
 
       -- ARETURN: return object ref from stack
-      0xb0 -> append =<< S_return . Just . VLocal <$> pop
+      0xb0 -> append =<< SReturn . Just . VLocal <$> pop
 
       -- RETURN: return void
-      0xb1 -> append $ S_return Nothing
+      0xb1 -> append $ SReturn Nothing
 
       -- GETSTATIC: get static field
       0xb2 -> do
         Just (CF.FieldRef cs desc) <- askCP2
-        void $ push $! VLocal $! VarRef $! R_staticField cs desc
+        void $ push $! VLocal $! VarRef $! RStaticField cs desc
 
       -- GETFIELD: get instance field
       0xb4 -> do
         Just (CF.FieldRef cs desc) <- askCP2
         obj <- popI
-        void $ push $! VLocal $! VarRef $! R_instanceField obj desc
+        void $ push $! VLocal $! VarRef $! RInstanceField obj desc
 
       -- PUTFIELD: get instance field
       0xb5 -> do
         Just (CF.FieldRef cs desc) <- askCP2
         (val, obj) <- liftM2 (,) pop popI
-        append $! S_assign (VarRef $! R_instanceField obj desc) $!
+        append $! SAssign (VarRef $! RInstanceField obj desc) $!
                   VLocal val
 
       -- INVOKEVIRTUAL: invoke instance method on object ref
@@ -349,52 +349,52 @@ byteCodeP excTable codeLength = do
                  params <- replicateM (length $ methodParams method) popI
                  objRef <- popI
                  v      <- resultVar method
-                 append $! S_assign v $ VExpr $
-                           E_invoke (I_virtual objRef) method params
+                 append $! SAssign v $ VExpr $
+                           EInvoke (IVirtual objRef) method params
 
       -- INVOKESPECIAL: invoke instance method on object ref
       0xb7 -> do method <- methodP
                  params <- replicateM (length $ methodParams method) popI
                  objRef <- popI
                  v      <- resultVar method
-                 append $! S_assign v $ VExpr $
-                           E_invoke (I_special objRef) method params
+                 append $! SAssign v $ VExpr $
+                           EInvoke (ISpecial objRef) method params
 
       -- INVOKESTATIC: invoke a static method (no object ref)
       0xb8 -> do method <- methodP
                  params <- replicateM (length $ methodParams method) popI
                  v      <- resultVar method
-                 append $! S_assign v $ VExpr $
-                           E_invoke I_static method params
+                 append $! SAssign v $ VExpr $
+                           EInvoke IStatic method params
 
       -- ATHROW: throw an exception
       0xbf -> do v <- popI
-                 append $ S_throw v
+                 append $ SThrow v
 
       -- NEW: new object ref
       0xbb -> do Just (CF.ClassRef path) <- askCP2
-                 void $ push $! VExpr $! E_new (R_object path) []
+                 void $ push $! VExpr $! ENew (RObject path) []
 
       -- NEWARRAY: new array of primitive type
       0xbc -> do tpe   <- fromIntegral <$> u1
                  count <- popI
-                 void $ push $ VExpr $! E_newArray (atypes !! (tpe - 4)) count
+                 void $ push $ VExpr $! ENewArray (atypes !! (tpe - 4)) count
 
       -- ARRAYLENGTH: get length of array ref
-      0xbe -> void . push =<< VExpr . E_length <$> popI
+      0xbe -> void . push =<< VExpr . ELength <$> popI
 
       -- CHECKCAST: cast an object to type
       0xc0 -> do Just (CF.ClassRef (CF.Class path)) <- askCP2
                  obj <- popI
-                 void $ push $ VExpr $! E_cast (T_object path) obj
+                 void $ push $ VExpr $! ECast (TObject path) obj
 
       -- IFNULL: if value is null jump
       0xc6 -> do v <- popI
-                 append =<< S_if (E_eq v $ VConst C_null) <$> label2
+                 append =<< SIf (EEq v $ VConst CNull) <$> label2
 
       -- IFNONNULL: if value is null jump
       0xc7 -> do v <- popI
-                 append =<< S_if (E_ne v $ VConst C_null) <$> label2
+                 append =<< SIf (ENe v $ VConst CNull) <$> label2
 
       -- UNASSIGNED: skip (can appear after last return; garbage)
       _ | code `elem` [0xcb..0xfd] -> return ()
@@ -424,7 +424,7 @@ byteCodeP excTable codeLength = do
     -- push value to stack (assign to next stack variable)
     push v = do
       x <- getFree
-      append $! S_assign x v
+      append $! SAssign x v
       return x
 
     -- push a local variable to stack
@@ -434,7 +434,7 @@ byteCodeP excTable codeLength = do
     append cmd = do
       pos <- ST.gets $ prevPos . snd
       stmts <- ST.gets $ methodStmts . fst
-      -- When injecting a S_try{} we also "eat" the following label
+      -- When injecting a STry{} we also "eat" the following label
       let mlabel = if L.null stmts || not (try_ $ last stmts)
                    then Just $ Label pos
                    else Nothing
@@ -483,35 +483,35 @@ byteCodeP excTable codeLength = do
     apply2 op = liftM2 (flip op) popI popI
 
     -- general version of if for cmp with zero
-    ifz op = append =<< liftM2 S_if (apply1 $ flip op $ VConst $ C_int 0) label2
+    ifz op = append =<< liftM2 SIf (apply1 $ flip op $ VConst $ CInt 0) label2
 
     -- general version of if for binary op
-    if2 op = append =<< liftM2 S_if (apply2 op) label2
+    if2 op = append =<< liftM2 SIf (apply2 op) label2
 
     -- array retrieval
     arrayGet tpe =
-      void . push =<< VLocal . VarRef <$> apply2 R_array
+      void . push =<< VLocal . VarRef <$> apply2 RArray
 
     -- array retrieval
     arraySet tpe = do
       var <- VLocal <$> pop
-      ref <- VarRef <$> apply2 R_array
-      append $ S_assign ref var
+      ref <- VarRef <$> apply2 RArray
+      append $ SAssign ref var
 
 
     -- allocate new variable for result of method call unless it's void
-    resultVar m | methodResult m == T_void = return $ VarLocal $ Local "_"
+    resultVar m | methodResult m == TVoid = return $ VarLocal $ Local "_"
                 | otherwise                = getFree
 
     -- Convert constant pool value to VConst
-    cpToVC (CF.Str s) = VConst $! C_string s
+    cpToVC (CF.Str s) = VConst $! CString s
     cpToVC a = error $ "Unknown constant: " ++ show a
 
-    types = [ T_int,       T_long,    T_float, T_double
-            , T_object "", T_boolean, T_char,  T_short  ]
+    types = [ TInt,       TLong,    TFloat, TDouble
+            , TObject "", TBoolean, TChar,  TShort  ]
 
-    atypes = [ T_boolean,  T_char  , T_float, T_double
-             , T_byte   ,  T_short , T_int  , T_long   ]
+    atypes = [ TBoolean,  TChar  , TFloat, TDouble
+             , TByte   ,  TShort , TInt  , TLong   ]
 
 parseJimple :: CF.ClassFile -> B.ByteString -> (Maybe ParseError, JimpleMethod Value)
 parseJimple cf method
@@ -539,7 +539,7 @@ parseJimple cf method
         modifyFst $ \m -> m {
           methodStmts =
              [(Nothing,
-               S_assign (VarLocal $ Local "l0") (VLocal $ VarRef R_this))]
+               SAssign (VarLocal $ Local "l0") (VLocal $ VarRef RThis))]
           }
 
       let dropSize = 4  -- maxStack and maxLocals
@@ -564,7 +564,7 @@ parseJimple cf method
     decl t n = LocalDecl t $ Local $ 'l' : show n
 
     ns = if isStatic then [0..] else [1..]
-    isStatic = F_static `elem` accFlags
+    isStatic = FStatic `elem` accFlags
 
     sig = MethodSig (CF.unClassRef $ CF.classThis cf) name accFlags params result
 
@@ -575,17 +575,17 @@ parseJimple cf method
 
 getFlags blockFlags = [ flag | (i, flag) <- flags, blockFlags `testBit` i ]
   where
-    flags = [ ( 0, F_public)
-            , ( 1, F_private)
-            , ( 2, F_protected)
-            , ( 3, F_static)
-            , ( 4, F_final)
-            , ( 5, F_synchronized)
-            , ( 6, F_bridge)
-            , ( 7, F_varargs)
-            , ( 8, F_native)
+    flags = [ ( 0, FPublic)
+            , ( 1, FPrivate)
+            , ( 2, FProtected)
+            , ( 3, FStatic)
+            , ( 4, FFinal)
+            , ( 5, FSynchronized)
+            , ( 6, FBridge)
+            , ( 7, FVarargs)
+            , ( 8, FNative)
               -- gap
-            , (10, F_abstract)
-            , (11, F_strict)
-            , (12, F_synthetic)
+            , (10, FAbstract)
+            , (11, FStrict)
+            , (12, FSynthetic)
             ]
