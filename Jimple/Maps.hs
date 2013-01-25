@@ -15,6 +15,7 @@ import Control.Applicative ((<$>))
 
 import Control.Monad
 import qualified Control.Monad.State  as ST
+import qualified Control.Monad.Reader as R
 import qualified Control.Monad.Writer as W
 import qualified Control.Monad.Error  as E
 
@@ -62,7 +63,7 @@ foldS f zero ls = F.foldl' go zero ls
 
 
 -- Apply map until a fix-point is reached
-mapFix f v = fst $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
+mapFix f v = snd $ head $ dropWhile (uncurry (/=)) $ zip l $ tail l
   where
     l = iterate f v
 
@@ -394,24 +395,50 @@ mapTryCatch = mapRewrite $ do
         _                      -> liftM2 (++) stmt readBody
 
 mapFixFinally = mapRewrite $ do
-  (mlbl, S_tryCatch body catches finally) <- anyStmt
-  fail ""
+  (mlbl, s0@(S_tryCatch body0 catches0 (Just finally0))) <- anyStmt
+  guard $ length finally0 > 2
+  guard $ throw_ $ snd $ last finally0
+  let
+    -- Build cleanup function (skip exception pop and final throw)
+    finally1 = drop 1 $ init finally0
+    clean    = delFinally finally1
+    -- Clean finally code from body and catches
+    body1    = clean body0
+    catches1 = map (second clean) catches0
+    -- Clean recursively
+    body2    = deep  clean body1
+    catches2 = deep2 clean catches1
+  return [(mlbl, S_tryCatch body2 catches2 $ Just finally1)]
   where
-    fixFinally body1 cs0 finBody1 =
-        let finBody2 = drop 1 $ init finBody1
-            delFin   = delFinally finBody2
-            body2    = delFin body1
-            cs2      = [ (exc, delFin bd) | (exc, bd) <- cs0 ]
-        in
-        (body2, cs2 ++ [(Nothing, finBody2)])
+    throw_ S_throw{} = True
+    throw_ _         = False
 
+    delFinally _   []   = []
     delFinally fin body | s@(_, S_throw  _) <- last body = body
-    delFinally fin body | fin == ending      = prefix
-                        | fin == init ending = prefix ++ [last ending]
+    delFinally fin body | fin == ending0 = prefix0
+                        | fin == init ending1 = prefix1 ++ [last ending0]
                         | otherwise = body
       where
-        ending = drop (length prefix) body
-        prefix = take (length body - length fin) body
+        (prefix1, ending1) = L.splitAt (length body - length fin - 1) body
+        (prefix0, ending0) = L.splitAt (length body - length fin    ) body
+
+    secondM f (a, b) = (a,) <$> f b
+
+    deep2 clean ls = map (second $ mapS $ f clean) ls
+
+    deep clean = mapS (f clean)
+
+    f clean (mlbl, s) = (mlbl,) $ case s of
+      S_tryCatch body catches mfinally ->
+        S_tryCatch
+          (dclean body)
+          (map (second dclean) catches)
+          (dclean `fmap` mfinally)
+      S_ifElse cnd left right -> S_ifElse cnd (dclean left) (dclean right)
+      S_doWhile nm body cnd -> S_doWhile nm (dclean body) cnd
+      _ -> s
+      where
+        dclean = deep clean . clean
 
     -- fixBody f (lbl, s) = (lbl,) $ case s of
     --   S_tryCatch bd cs -> S_tryCatch (go bd) (go' cs)
