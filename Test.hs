@@ -76,7 +76,7 @@ testJava :: FilePath -> IO ()
 testJava path = do
   -- Compare
   (stdout0, stdout1) <- runJavaTwice path
-  assertEqual "stdout" stdout0 stdout1
+  assertEqual "stdout" (lines stdout0) (lines stdout1)
 
 
 makeTest name = TestLabel name $ TestCase $ testJava $ "examples" </> name
