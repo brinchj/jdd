@@ -66,6 +66,8 @@ data Stmt v = S_breakpoint
             | S_tryCatch [LabelStmt v]
               [(CF.Class, [LabelStmt v])] -- catch exception
               (Maybe [LabelStmt v])       -- finally
+            -- Mainly for debugging
+            | S_comment String
             deriving (Eq, Ord, Functor, F.Foldable)
 
 
@@ -227,6 +229,7 @@ instance Show v => Show (Stmt v) where
   show (S_tryCatch body catches finally) =
     concat ["tryCatch ", show body, show catches, " finally ", show finally]
 
+  show (S_comment s) = "comment " ++ s
 
 instance Show v => Show (Variable v) where
   show (VarRef   ref) = '@' : show ref

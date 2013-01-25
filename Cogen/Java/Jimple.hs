@@ -199,6 +199,8 @@ stmtToJava s = case s of
 
   S_throw exc -> line $ "throw " ++ value exc
 
+  S_comment s -> Java [JavaStmt 0 $ "/* " ++ s ++ " */"]
+
   -- foo -> error $ "stmtToJava: Unknown statement " ++ show foo
   foo -> Java [JavaStmt 0 $ "// unknown statement " ++ show foo]
 
