@@ -140,7 +140,7 @@ mapInline m = m { methodStmts = go $ methodStmts m }
 
 
 -- Rewrite labels from relative to absolute, while removing unused ones.
-mapCorrectLabels m = m { methodStmts = go $ methodStmts m }
+mapLabels m = m { methodStmts = go $ methodStmts m }
   where
     go s = map f s'
       where
@@ -167,7 +167,7 @@ mapCorrectLabels m = m { methodStmts = go $ methodStmts m }
 
 
 -- Move argument to init-calls into their respective new call (constructor)
-mapCorrectInit m = m { methodStmts = go $ methodStmts m }
+mapInit m = m { methodStmts = go $ methodStmts m }
   where
     go s = catMaybes $ ST.evalState (mapM goM s) M.empty
 
@@ -185,7 +185,29 @@ mapCorrectInit m = m { methodStmts = go $ methodStmts m }
 
       _ -> return $ Just stmt
 
+-- Fix use of this reference
+mapThis = mapRewritePrefix $ do
+  first@(mlblS, SAssign v (VLocal (VarRef RThis))) <- anyStmt
+  rest <- many anyStmt
+  return $ first : (ST.evalState (mapM track rest) $ S.singleton v)
+  where
+    track stmt = do
+      s <- ST.get
+      case stmt of
+        (mlbl, SAssign v' (VLocal v)) | S.member v s -> do
+          ST.modify $ S.insert v
+          return $ (mlbl, SAssign v' (VLocal $ VarRef RThis))
 
+        _ -> return stmt
+
+
+mapSuper = mapRewrite $ do
+  (mlbl, SAssign (VarLocal (Local "_"))
+         (VExpr (EInvoke
+                 (ISpecial (VLocal _))
+                 m@(MethodSig _cl "<init>" _fs _ts _rt) pars)
+         )) <- anyStmt
+  return []
 
 -- Eliminate cross goto:
 -- > goto 2

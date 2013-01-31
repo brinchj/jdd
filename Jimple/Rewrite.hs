@@ -33,7 +33,11 @@ module Jimple.Rewrite
        , switchStmt
 
        , mapRewrite
+       , mapRewritePrefix
+
        , rewrite
+       , rewritePrefix
+
        , many )
        where
 
@@ -137,7 +141,11 @@ jumpP = satisfy $ isJust . jumpLabel . snd
 -- | Rewrite Jimple method code according to rule
 mapRewrite rule m = m { methodStmts = go $ methodStmts m }
   where
-    go ops = maybe ops go $ rewrite rule ops
+    go ops = fromMaybe ops $ rewrite rule ops
+
+mapRewritePrefix rule m = m { methodStmts = go $ methodStmts m }
+  where
+    go ops = fromMaybe ops $ rewritePrefix rule ops
 
 
 -- | Rewrite a list of LabelStmt
@@ -149,11 +157,12 @@ rewrite :: Parser [Item] -> [Item] -> Maybe [Item]
 rewrite p = go
   where
     go [] = Nothing
-    go xs = case runIdentity $ runErrorT $ runPT (play p) () "rewrite" xs of
-      Right (Right (size, xs')) -> Just $ xs' ++ drop size xs
-      _ -> case xs of
+    go xs = case rewritePrefix p xs of
+      Just xs' -> Just xs'
+      Nothing  -> case xs of
         ((lbl, x):rest) | Just x1 <- goStmt x -> Just $ (lbl, x1) : rest
-        _ -> (head xs:) `fmap` go (tail xs)
+        (s:rest) -> (s:) `fmap` go rest
+        _ -> Nothing
 
     goStmt s = case s of
       SIfElse cnd left right
@@ -183,6 +192,15 @@ rewrite p = go
     goAny (x:xs)
       | Just result <- go x = Just $ result : xs
       | otherwise           = (x:) <$> goAny xs
+
+
+rewritePrefix :: Parser [Item] -> [Item] -> Maybe [Item]
+rewritePrefix p = go
+  where
+    go [] = Nothing
+    go xs = case runIdentity $ runErrorT $ runPT (play p) () "rewrite" xs of
+      Right (Right (size, xs')) -> Just $ xs' ++ drop size xs
+      _ -> Nothing
 
     play p = do
       start <- sourceLine <$> getPosition
