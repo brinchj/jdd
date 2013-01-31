@@ -1,6 +1,7 @@
 module Main where
 
 import System.Environment
+import System.Exit (exitFailure)
 
 import Control.Monad
 import Control.Applicative
@@ -13,10 +14,13 @@ import Cogen.Java        (toJava)
 import Cogen.Java.Jimple ()
 
 import Test (tests, makeTest)
+import Test.Random (randomTest)
+
 import Test.HUnit (runTestTT, Test(..))
+import Test.QuickCheck (verboseCheck, Result(..))
 
 
-usage name = putStrLn $ name ++ " [-|classfile|--test|--help]"
+usage name = putStrLn $ name ++ " [-|classfile|--test|--test-qc|--help]"
 
 main = do
   name <- getProgName
@@ -28,8 +32,19 @@ main = do
     "--test" | null rest -> void tests
              | otherwise -> void $ runTestTT $ TestList $ map makeTest rest
 
-    file -> do
-      bytes <- if file == "-" then B.getContents else B.readFile file
+    "--test-qc" -> verboseCheck randomTest
+                      -- putStrLn "\n\nOutput:"
+                      -- putStrLn $ output r
+                      -- putStrLn $ "\n\nReason:" ++ reason r
+
+    '-':_ -> do
+      usage name
+      putStrLn $ "Error: Unknown flag " ++ cmd
+      exitFailure
+
+    fileOrStdin -> do
+      bytes <- if fileOrStdin == "-" then B.getContents
+               else B.readFile fileOrStdin
       putStrLn $ flatCode $ toJava $ CF.parseClassFile bytes
 
 
