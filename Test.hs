@@ -25,9 +25,12 @@ import System.Directory
 import System.Unix.Directory
 import System.FilePath
 
+import Control.Monad.Error
 import Control.Applicative
+
 import qualified Data.ByteString as B
 import qualified Data.Map as Map
+import Data.Either
 
 
 decompileClass :: FilePath -> IO String
@@ -36,21 +39,22 @@ decompileClass file = do
   return $ flatCode $ toJava cf
 
 
-runJavaOK :: FilePath -> FilePath -> IO String
+runJavaOK :: MonadIO m => FilePath -> FilePath -> ErrorT String m String
 runJavaOK workDir path = do
   -- Compile program
   run "javac" [workDir </> path <.> "java"]
   run "java"  ["-cp", workDir, path]
   where
     run cmd args = do
-      (exit, stdout, stderr) <- readProcessWithExitCode cmd args ""
-      assertString stderr
-      assertEqual "ExitCode" ExitSuccess exit
+      (exit, stdout, stderr) <- liftIO $ readProcessWithExitCode cmd args ""
+      when (exit /= ExitSuccess || not (null stderr)) $
+        throwError $ "Command failed: " ++ stderr
       return stdout
 
 
-runJavaTwice :: FilePath -> IO (String, String)
-runJavaTwice path = withTemporaryDirectory "jdd-test" $ \tmpDir -> do
+runJavaTwice :: MonadIO m =>
+                FilePath -> m (Either String String, Either String String)
+runJavaTwice path = liftIO $ withTemporaryDirectory "jdd-test" $ \tmpDir -> do
   makeDirs tmpDir $ splitDirectories $ takeDirectory path
   -- Test original
   copyFile javaPath $ tmpDir </> javaPath
@@ -62,7 +66,7 @@ runJavaTwice path = withTemporaryDirectory "jdd-test" $ \tmpDir -> do
   -- Return both stdouts
   return (stdout0, stdout1)
   where
-    run workDir = runJavaOK workDir path
+    run workDir = liftIO $ runErrorT $ runJavaOK workDir path
 
     makeDirs dir ("/":xs) = makeDirs dir xs
     makeDirs dir (".":xs) = makeDirs dir xs
@@ -72,11 +76,14 @@ runJavaTwice path = withTemporaryDirectory "jdd-test" $ \tmpDir -> do
     javaPath = path <.> "java"
 
 
+check assertEq fail (resultA, resultB) = do
+  mapM_ (fail.show) $ lefts [resultA, resultB]
+  let [stdoutA, stdoutB] = rights [resultA, resultB]
+  assertEq "stdout" stdoutA stdoutB
+
+
 testJava :: FilePath -> IO ()
-testJava path = do
-  -- Compare
-  (stdout0, stdout1) <- runJavaTwice path
-  assertEqual "stdout" (lines stdout0) (lines stdout1)
+testJava path = check assertEqual assertFailure =<< runJavaTwice path
 
 
 makeTest name = TestLabel name $ TestCase $ testJava $ "examples" </> name
