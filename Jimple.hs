@@ -10,6 +10,7 @@ import qualified Data.ByteString.Char8 as B
 
 import Debug.Trace
 
+import Safe
 import Data.Bits
 import Data.Char
 import Data.Maybe
@@ -133,6 +134,8 @@ exceptionTableM = do
 
 data JimpleST = JimpleST { jimpleFree  :: [Variable Value]
                          , jimpleStack :: [Variable Value]
+                         , jimpleScope :: [( Integer
+                                           , [Variable Value], [Variable Value])]
                          , thisPos     :: Integer
                          , prevPos     :: Integer
                          }
@@ -146,6 +149,9 @@ byteCodeP excTable codeLength = do
       pos <- ST.gets $ thisPos . snd
       modifySnd $ \j -> j { prevPos = pos }
 
+      -- Check for end-of-scope
+      revertScopes pos
+
       -- Handle try
       F.forM_ (fromStart excTable pos) $ \exc ->
         append $ STry (pos, exceptTo exc) $ exceptTarget exc
@@ -158,6 +164,17 @@ byteCodeP excTable codeLength = do
       case mcode of
         Nothing -> return ()
         Just c  -> parse (ord c) >> codeM
+
+    revertScopes pos = do
+      scope <- ST.gets $ headMay . jimpleScope . snd
+      case scope of
+        Just (endPos, free, stack) | endPos <= pos -> do
+          -- error $ show (endPos, pos)
+          modifySnd $ \j -> j { jimpleFree = free, jimpleStack = stack
+                              , jimpleScope = tail $ jimpleScope j }
+          revertScopes pos
+        _ -> return ()
+
 
     catch (ee@(ExceptEntry start to _ eid)) = do
       mx <- if eid == 0 then return Nothing else getCP eid
@@ -289,16 +306,16 @@ byteCodeP excTable codeLength = do
                    EAdd (VLocal $! getLocal idx) $! VConst $! CInt val
 
       -- ?2?: convert types
-      _ | code `elem` [0x85..0x93] ->
-        void $ push . VLocal =<< pop
+      _a | code `elem` [0x85..0x93] ->
+             void $ push . VLocal =<< pop
 
       -- IF??: int cmp with zero, eq to le
-      _ | code `elem` [0x99..0x9e] ->
-        ifz $[EEq, ENe, ELt, EGe, EGt, ELe] !! (code - 0x99)
+         | code `elem` [0x99..0x9e] ->
+             ifz $[EEq, ENe, ELt, EGe, EGt, ELe] !! (code - 0x99)
 
       -- IF_ICMP??: int cmp, eq to le
-      _ | code `elem` [0x9f..0xa4] ->
-        if2 $ [EEq, ENe, ELt, EGe, EGt, ELe] !! (code - 0x9f)
+         | code `elem` [0x9f..0xa4] ->
+             if2 $ [EEq, ENe, ELt, EGe, EGt, ELe] !! (code - 0x9f)
 
       -- GOTO: unconditional jump
       0xa7 -> append =<< SGoto <$> label2
@@ -486,10 +503,24 @@ byteCodeP excTable codeLength = do
     apply2 op = liftM2 (flip op) popI popI
 
     -- general version of if for cmp with zero
-    ifz op = append =<< liftM2 SIf (apply1 $ flip op $ VConst $ CInt 0) label2
+    ifz op = do
+      lbl <- label2
+      append =<< liftM (flip SIf lbl) (apply1 $ flip op $ VConst $ CInt 0)
+      newScope $ fromIntegral lbl
 
     -- general version of if for binary op
-    if2 op = append =<< liftM2 SIf (apply2 op) label2
+    if2 op = do
+      lbl <- label2
+      append =<< liftM (flip SIf lbl) (apply2 op)
+      newScope $ fromIntegral lbl
+
+    -- create a new scope
+    newScope endPos = do
+      prevPos <- ST.gets $ prevPos . snd
+      free  <- ST.gets $ jimpleFree . snd
+      stack <- ST.gets $ jimpleStack . snd
+      modifySnd $ \j -> j { jimpleScope = (prevPos + endPos, free, stack) :
+                                          jimpleScope j }
 
     -- array retrieval
     arrayGet tpe =
@@ -522,7 +553,7 @@ parseJimple cf method
   | otherwise = (Nothing, emptyMethod)
   where
     emptyMethod = Method   sig [] [] [] []
-    emptyState  = JimpleST stackVars [] 0 0
+    emptyState  = JimpleST stackVars [] [] 0 0
 
     stackVars = map (VarLocal . Local . ("s"++) . show) [1..]
 
