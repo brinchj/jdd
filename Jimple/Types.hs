@@ -142,6 +142,7 @@ data Variable v = VarRef (Ref v)
 data Ref v = RCaughtException
            | RParameter     Integer
            | RThis
+           | RSuper
            | RArray         v v
            | RInstanceField v CF.Desc
            | RStaticField     CF.Class CF.Desc
