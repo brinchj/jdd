@@ -113,7 +113,7 @@ simpleTyper (meth@(Method sig ls is ms me)) =
 
     go :: LabelStmt Value -> ST.State SimpleTyperST (LabelStmt Value)
     go (lbl, s1) = do
-      let go' = mapM (isolate . go)
+      let go' = isolate <$> mapM go
       let def = return s1
       s2 <- case s1 of
         SAssign (VarLocal v) e -> do
