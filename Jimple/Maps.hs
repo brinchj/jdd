@@ -93,6 +93,12 @@ mapCleanup m = m { methodStmts = go $ methodStmts m }
   where
     go s = reverse $ catMaybes $ ST.evalState (mapM go' $ reverse s) S.empty
 
+    -- Remove lines that do nothing (empty assign and nop)
+    go' (mlbl, SAssign (VarLocal (Local "_")) (VLocal _)) =
+      return $ Just (mlbl, SNop)
+    go' (Nothing, SNop) = return Nothing
+
+    -- Remove lines that aren't used elsewhere
     go' (l@(label, s@(SAssign (VarLocal v@(Local ('s':_))) e))) = do
       alive <- ST.gets $ S.member v
       when alive $ addAlive s
@@ -102,9 +108,7 @@ mapCleanup m = m { methodStmts = go $ methodStmts m }
         Just _  | canRemove -> return $ Just (label, SNop)
         _ -> return $ Just l
 
-    -- remove dead lines
-    go' (Nothing, SNop) = return Nothing
-
+    -- Keep the rest
     go' (l@(_, st)) = addAlive st >> return (Just l)
 
     addAlive = ST.modify . S.union . F.foldl f S.empty
