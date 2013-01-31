@@ -104,13 +104,20 @@ inline = do
 
 printAll = do
   vs <- ST.gets M.elems
-  W.tell $ map println $ L.sort $ concat vs
+  mapM_ W.tell $ map println $ L.sort $ concat vs
 
-println v = SAssign (VarLocal $ Local "_")
-            (VExpr $ EInvoke IStatic
-             (MethodSig (CF.Class "System.out") "println" []
-              [TObject "java/lang/String"] TVoid)
-             [VLocal $ VarLocal $ Local v])
+println v | "Boolean" `L.isInfixOf` v = [
+  SIfElse (EEq (VLocal $ VarLocal $ Local v) (VConst $ CBoolean True))
+  [(Nothing, out $ VConst $ CString "true" )]
+  [(Nothing, out $ VConst $ CString "false")]
+  ]
+          | otherwise                 = [out $ VLocal $ VarLocal $ Local v]
+  where
+    out a =
+      SAssign (VarLocal $ Local "_")
+      (VExpr $ EInvoke IStatic
+       (MethodSig (CF.Class "System.out") "println" []
+        [TObject "java/lang/String"] TVoid) [a])
 
 
 stmtG :: SGen ()
