@@ -256,24 +256,17 @@ mapElimGoto = mapRewrite $ do
 mapGotoIf = mapRewrite $ do
   (ifLbl, SIf cond lbl1) <- ifP
   body1 <- bodyM lbl1
-  next  <- anyStmt
-  case next of
+  case (null body1, last body1) of
     -- if with else part: if cond 1 ... goto 2, 1: ... 2:
-    (_, SGoto lbl2) -> do
+    (False, (_, SGoto lbl2)) -> do
       body2 <- bodyM lbl2
-      return [(ifLbl, SIfElse cond body2 body1)]
+      return [(ifLbl, SIfElse cond body2 $ init body1)]
 
     -- if with no else
-    (Just lbl', _) | lbl' == lbl1 ->
-      return [(ifLbl, SIfElse cond [] body1), next]
-
-    _ -> E.throwError "mapGotoIf: mismatch"
+    _ -> return [(ifLbl, SIfElse cond [] body1)]
 
   where
-    bodyS lbl (_, SGoto _) = False
-    bodyS lbl (mlbl,     _) = mlbl /= Just lbl
-
-    bodyM lbl = many $ satisfy $ bodyS lbl
+    bodyM lbl = many $ satisfy $ ((/= Just lbl).fst)
 
 
 -- All labels with backwards jumps are loops
