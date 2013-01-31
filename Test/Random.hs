@@ -25,7 +25,7 @@ import Data.Maybe
 import qualified Data.List as L
 import qualified Data.Map  as M
 
-import Test (runJavaTwice)
+import Test (runJavaTwice, check)
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
 
@@ -116,10 +116,8 @@ println v = SAssign (VarLocal $ Local "_")
 stmtG :: SGen ()
 stmtG = do
   x <- lift2 $ frequency [(1, return True), (50, return False)]
-  (lst, i) <- if x then
-                (deeps,) <$> lift2 (elements [0..length deeps - 1])
-              else
-                (stmts,) <$> lift2 (elements [0..length stmts - 1])
+  let lst = if x then deeps else stmts
+  i <- lift2 $ choose (0, length lst - 1)
   lst !! i
   where
     deeps = [ifG]
@@ -156,10 +154,15 @@ instance Arbitrary Code where
 
 randomTest = monadicIO $ do
   Code code <- pick arbitrary
-  (stdout0, stdout1) <- run $ do
+  result <- run $ do
     writeFile ("examples" </> "TmpTestMain.java") code
     runJavaTwice $ "examples" </> "TmpTestMain"
-  assert $ stdout0 == stdout1
+  check assertEq fail result
+  where
+    assertEq name a b | a == b    = return ()
+                      | otherwise = fail msg
+      where
+        msg = name ++ ": expected:\n" ++ a ++ "\nbut got:\n" ++ b
 
 
 test = do
