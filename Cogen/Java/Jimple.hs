@@ -248,7 +248,7 @@ methodToJava (Method sig locals0 idents stmts excs) =
 
 
 
-phase1 = mapCorrectInit . mapCorrectLabels
+phase1 = mapSuper . mapThis . mapInit . mapLabels
 phase2 = mapFix $ mapCleanup . mapInline . mapAppendEmpty
 phase3 = mapFix $ mapGotoIf . mapSwitch . mapWhile . mapElimGoto
 phase4 = mapFix mapFixFinally . mapFix mapTryCatch
