@@ -56,7 +56,7 @@ getG type_ = do
     Just (l@(x:xs)) | reuse -> Local <$> lift2 (elements l)
     _                       -> create
   where
-    prefix = "v_" ++ drop 2 (show type_)
+    prefix = 'v' : drop 1 (show type_)
     create = do
       lst <- ST.gets $ M.lookup type_
       case lst of
