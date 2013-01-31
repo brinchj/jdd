@@ -139,7 +139,9 @@ instance Arbitrary Java where
 
 
 data Code = Code String
-            deriving Show
+
+instance Show Code where
+  show (Code s) = s
 
 instance Arbitrary Code where
   arbitrary = do code <- flatCode <$> surround <$> (arbitrary :: Gen Java)
