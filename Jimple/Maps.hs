@@ -6,6 +6,7 @@
 
 module Jimple.Maps where
 
+import Safe
 import Debug.Trace
 
 import qualified Parser as CF
@@ -256,9 +257,9 @@ mapElimGoto = mapRewrite $ do
 mapGotoIf = mapRewrite $ do
   (ifLbl, SIf cond lbl1) <- ifP
   body1 <- bodyM lbl1
-  case (null body1, last body1) of
+  case lastMay body1 of
     -- if with else part: if cond 1 ... goto 2, 1: ... 2:
-    (False, (_, SGoto lbl2)) -> do
+    Just (_, SGoto lbl2) -> do
       body2 <- bodyM lbl2
       return [(ifLbl, SIfElse cond body2 $ init body1)]
 
