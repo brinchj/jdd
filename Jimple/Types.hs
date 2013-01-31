@@ -87,6 +87,23 @@ instance Num      Label where
   signum (Label n) = Label $ signum n
   abs    (Label n) = Label $ abs n
 
+instance Real Label where
+  toRational (Label a) = fromIntegral a
+
+instance Enum Label where
+  toEnum = Label . fromIntegral
+  fromEnum (Label a) = fromIntegral a
+
+instance Integral Label where
+  toInteger (Label a) = a
+  quot                = labelOp quot
+  rem                 = labelOp rem
+  div                 = labelOp div
+  mod                 = labelOp mod
+  quotRem (Label a) (Label b) = let (c, d) = a `quotRem` b in (Label c, Label d)
+  divMod  (Label a) (Label b) = let (c, d) = a `divMod`  b in (Label c, Label d)
+
+
 labelOp f (Label a) (Label b) = Label $ a `f` b
 
 
