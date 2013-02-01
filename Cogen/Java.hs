@@ -1,7 +1,13 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Cogen.Java where
 
+import Prelude()
+import CustomPrelude
+
 import Cogen
-import Data.List
+
+import qualified Data.Text as T
 
 
 -- We can construct Java-code from a list of Java statements
@@ -13,18 +19,18 @@ instance Codeable Java where
 
 
 -- Data types to represent blocks of Java-statements
-data JavaStmt = JavaBlock String [JavaStmt] String
+data JavaStmt = JavaBlock Text [JavaStmt] Text
               | JavaStmt  { javaIndent :: Int
-                          , javaStmt   :: String }
+                          , javaStmt   :: Text }
               deriving Show
 
 -- Blocks of Java-statements can be used to construct Java-code
 instance Codeable JavaStmt where
   toCode ind (JavaStmt relInd stmt) =
-    [[replicate (ind+relInd) ' ', stmt]]
+    [[T.replicate (ind + relInd) " ", stmt]]
 
   toCode ind (JavaBlock left stmts right) =
-    let indS = replicate ind ' ' in
+    let indS = T.replicate ind " " in
     [indS, left, "{"] : concatMap (toCode $ 4 + ind) stmts ++
     [ [indS, "}", right ] ]
 
@@ -35,7 +41,7 @@ class Javable a where
   toJava :: a -> Java
 
 instance Javable a => Javable [a] where
-  toJava l = join $ map toJava l
+  toJava l = concat $ map toJava l
 
 instance Javable Java where
   toJava = id
@@ -43,11 +49,11 @@ instance Javable Java where
 instance Javable JavaStmt where
   toJava = Java . return
 
-append :: Java -> Java -> Java
-append (Java a) (Java b) = Java $ a ++ b
 
-join :: [Java] -> Java
-join = foldl' append (Java [])
+instance Monoid Java where
+  mempty = Java []
+  mappend (Java a) (Java b) = Java $ a ++ b
+  mconcat = foldl' (++) mempty
 
 
 -- A simple example

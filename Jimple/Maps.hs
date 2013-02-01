@@ -2,37 +2,32 @@
            , ScopedTypeVariables
            , MultiWayIf
            , TupleSections
+           , ViewPatterns
   #-}
 
 module Jimple.Maps where
 
-import Safe
-import Debug.Trace
+import Prelude()
+import CustomPrelude
 
 import qualified Parser as CF
 
-import Control.Arrow (first, second)
-import Control.Applicative ((<$>))
-
-import Control.Monad
 import qualified Control.Monad.State  as ST
 import qualified Control.Monad.Reader as R
 import qualified Control.Monad.Writer as W
 import qualified Control.Monad.Error  as E
 
+import qualified Data.Text as T
 import qualified Data.ByteString as B
 import qualified Data.Foldable as F
 import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-import Data.Maybe
-import Data.Either
-
 import Jimple.Types
 import Jimple.Rewrite
 
-import Text.Parsec     (getPosition, optionMaybe, try, many1)
+import Text.Parsec     as P(getPosition, optionMaybe, try, many1)
 import Text.Parsec.Pos (sourceLine)
 
 
@@ -100,7 +95,8 @@ mapCleanup m = m { methodStmts = go $ methodStmts m }
     go' (Nothing, SNop) = return Nothing
 
     -- Remove lines that aren't used elsewhere
-    go' (l@(label, s@(SAssign (VarLocal v@(Local ('s':_))) e))) = do
+    go' (l@(label, s@(SAssign (VarLocal v@(Local nm)) e)))
+      | 's' <- T.head nm = do
       alive <- ST.gets $ S.member v
       when alive $ addAlive s
       let canRemove = not alive && pureValue e
@@ -130,8 +126,9 @@ mapInline m = m { methodStmts = go $ methodStmts m }
       update s
       return (l, inline m `fmap` s)
 
-    inline m (val@(VLocal (var@(VarLocal (Local ('s':_)))))) =
-      fromMaybe val $ M.lookup var m
+    inline m (val@(VLocal (var@(VarLocal (Local nm)))))
+      | 's' <- T.head nm = fromMaybe val $ M.lookup var m
+
     inline m (VExpr  e) = VExpr $ inline m `fmap` e
     inline m (VLocal v) = VLocal $ inline m `fmap` v
     inline m e = e
@@ -289,7 +286,7 @@ mapWhile  m = m { methodStmts = go $ methodStmts m }
 
     rule = do
       (Just lblStart, stmtStart) <- anyStmt
-      let name = "while_" ++ show lblStart
+      let name = "while_" ++ showT lblStart
 
       case M.lookup lblStart backrefs of
         Just (i, (j, stmt'):rs) | i < j -> do
@@ -342,7 +339,7 @@ replaceLabels labels = mapS go
 -- ==>
 -- > switch v [(case0, body0), (case1, body1), (case2, body2))]
 mapSwitch = mapRewrite $ do
-  name <- (("switch_"++).show) <$> sourceLine <$> getPosition
+  name <- (("switch_"++).showT) <$> sourceLine <$> getPosition
   (lblStart, SLookupSwitch v lblDef cs0) <- switchP
 
   -- Group statements according to case
@@ -395,7 +392,7 @@ mapTryCatch = mapRewrite $ do
   return [(mlbl1, STryCatch body1 catches $ listToMaybe finally)]
 
   where
-    catch1 sid = try $ do
+    catch1 sid = P.try $ do
       (Nothing, SCatch sid' _ mexc) <- catchP
       guard $ sid' == sid
       body <- readBody

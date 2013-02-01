@@ -5,6 +5,9 @@
 
 module Test.Random where
 
+import Prelude()
+import CustomPrelude
+
 import qualified Data.ByteString.Char8 as B
 
 import qualified Parser as CF
@@ -21,7 +24,7 @@ import Control.Monad.Trans
 import qualified Control.Monad.State  as ST
 import qualified Control.Monad.Writer as W
 
-import Data.Maybe
+import qualified Data.Text as T
 import qualified Data.List as L
 import qualified Data.Map  as M
 
@@ -29,11 +32,11 @@ import Test (runJavaTwice, check)
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
 
-import System.FilePath
+-- import System.FilePath
 import System.Unix.Directory
 
 
-type SGen v = W.WriterT [Stmt Value] (ST.StateT (M.Map Type [String]) Gen) v
+type SGen v = W.WriterT [Stmt Value] (ST.StateT (M.Map Type [Text]) Gen) v
 
 
 lift2 = lift . lift
@@ -56,14 +59,14 @@ getG type_ = do
     Just (l@(x:xs)) | reuse -> Local <$> lift2 (elements l)
     _                       -> create
   where
-    prefix = 'v' : drop 1 (show type_)
+    prefix = "v" ++ T.drop 1 (showT type_)
     create = do
       lst <- ST.gets $ M.lookup type_
       case lst of
         Nothing -> ST.modify $ M.insert type_ [prefix ++ "0"]
         Just ls -> ST.modify $
-                   M.insertWith (++) type_ [prefix ++ show (length ls)]
-      name <- head <$> fromJust <$> ST.gets (M.lookup type_)
+                   M.insertWith (++) type_ [prefix ++ showT (length ls)]
+      name <- maybe "unknown" head <$> ST.gets (M.lookup type_)
       val  <- VConst <$> constG type_
       W.tell [SDeclare type_ (VarLocal $ Local name) val]
       return $ Local name
@@ -106,7 +109,7 @@ printAll = do
   vs <- ST.gets M.elems
   mapM_ W.tell $ map println $ L.sort $ concat vs
 
-println v | "Boolean" `L.isInfixOf` v = [
+println v | "Boolean" `T.isInfixOf` v = [
   SIfElse (EEq (VLocal $ VarLocal $ Local v) (VConst $ CBoolean True))
   [(Nothing, out $ VConst $ CString "true" )]
   [(Nothing, out $ VConst $ CString "false")]
@@ -142,13 +145,13 @@ instance Arbitrary StmtList where
 
 
 instance Arbitrary Java where
-  arbitrary = join <$> map stmtToJava <$> unStmtList <$> arbitrary
+  arbitrary = concat <$> map stmtToJava <$> unStmtList <$> arbitrary
 
 
-data Code = Code String
+data Code = Code Text
 
 instance Show Code where
-  show (Code s) = s
+  show (Code s) = show s
 
 instance Arbitrary Code where
   arbitrary = do code <- flatCode <$> surround <$> (arbitrary :: Gen Java)

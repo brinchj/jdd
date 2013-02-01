@@ -1,11 +1,19 @@
+{-# LANGUAGE OverloadedStrings
+           , ViewPatterns
+  #-}
+
 module Main where
 
-import System.Environment
+import Prelude()
+import CustomPrelude
+
+import System.Environment (getProgName)
 import System.Exit (exitFailure)
 
 import Control.Monad
 import Control.Applicative
 
+import qualified Data.Text as T
 import qualified Data.ByteString.Char8 as B
 import qualified Parser as CF
 
@@ -23,28 +31,29 @@ import Test.QuickCheck (verboseCheck, Result(..))
 usage name = putStrLn $ name ++ " [-|classfile|--test|--test-qc|--help]"
 
 main = do
-  name <- getProgName
+  name <- fromString <$> getProgName
   args <- getArgs
   let (cmd, rest) = if null args then ("", []) else (head args, tail args)
   case cmd of
     "" -> usage name
     "--help" -> usage name
     "--test" | null rest -> void tests
-             | otherwise -> void $ runTestTT $ TestList $ map makeTest rest
+             | otherwise -> void $ runTestTT $ TestList $
+                            map makeTest rest
 
     "--test-qc" -> verboseCheck randomTest
                       -- putStrLn "\n\nOutput:"
                       -- putStrLn $ output r
                       -- putStrLn $ "\n\nReason:" ++ reason r
 
-    '-':_ -> do
+    _ | "-" <- T.take 1 cmd -> do
       usage name
       putStrLn $ "Error: Unknown flag " ++ cmd
       exitFailure
 
     fileOrStdin -> do
       bytes <- if fileOrStdin == "-" then B.getContents
-               else B.readFile fileOrStdin
+               else B.readFile $ show fileOrStdin
       putStrLn $ flatCode $ toJava $ CF.parseClassFile bytes
 
 

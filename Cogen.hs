@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Cogen
        ( Code
        , CodeRows
@@ -6,11 +8,16 @@ module Cogen
        )
        where
 
-import Data.List
+import Prelude()
+import CustomPrelude
 
-type Code        = String
-type CodeRows    = [[String]]
+import qualified Data.Text as T
+
+
+type Code        = Text
+type CodeRows    = [[Text]]
 type Indentation = Int
+
 
 -- A value is Codeable when it can be transformed into a list of line-pieces
 class Codeable a where
@@ -19,6 +26,6 @@ class Codeable a where
 
 -- Convert our internal representation of code rows to regular "flat" code
 flatCode :: Codeable a => a -> Code
-flatCode stmt = intercalate "\n" $ map concat rows
+flatCode stmt = T.intercalate "\n" $ map concat rows
   where
     rows = toCode 0 stmt

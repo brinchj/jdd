@@ -6,23 +6,19 @@
 
 module Jimple.Typing where
 
-import Util
+import Prelude()
+import CustomPrelude
+
 import Jimple.Types
 
 import qualified Jimple as J
 import qualified Parser as CF
 
-import Data.Either
-import Data.Maybe
-
+import qualified Data.Text as T
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 
-import Control.Applicative
-import Control.Monad
 import qualified Control.Monad.State as ST
-
-import Debug.Trace
 
 type TypeV v = Either Type (Variable v, Type -> Type)
 
@@ -40,12 +36,13 @@ instance TypeableJ Type v where
 
 instance TypeableJ Constant v where
   typeOf c = Left $ case c of
-    CInt    _ -> TInt
-    CDouble _ -> TDouble
-    CFloat  _ -> TFloat
-    CLong   _ -> TLong
-    CString _ -> TObject "java/lang/String"
-    CNull     -> TUnknown
+    CBoolean _ -> TBoolean
+    CInt     _ -> TInt
+    CDouble  _ -> TDouble
+    CFloat   _ -> TFloat
+    CLong    _ -> TLong
+    CString  _ -> TObject "java/lang/String"
+    CNull      -> TUnknown
 
 
 
@@ -53,7 +50,7 @@ instance TypeableJ (Variable v) v where
   typeOf v = Right (v, id)
 
 
-
+isCmp :: Expression v -> Bool
 isCmp e = case e of
    EEq   _ _ -> True
    EGe   _ _ -> True
@@ -67,12 +64,12 @@ isCmp e = case e of
    _          -> False
 
 instance (TypeableJ v v) => TypeableJ (Expression v) v where
-  typeOf (ELength v) = Left TInt
-  typeOf (ECast t v) = Left t
-  typeOf (EInstanceOf v _) = Left TBoolean
-  typeOf (ENewArray t v) = Left $ TArray 1 t
-  typeOf (ENew (RObject c) _args) = Left $ TObject $ CF.classPath c
-  typeOf (ENewMultiArray t v _) = Left $ TArray 0 t
+  typeOf (ELength _) = Left TInt
+  typeOf (ECast t _) = Left t
+  typeOf (EInstanceOf _ _) = Left TBoolean
+  typeOf (ENewArray t _) = Left $ TArray 1 t
+  typeOf (ENew (RObject c) _args) = Left $ TObject $ fromUtf8 $ CF.classPath c
+  typeOf (ENewMultiArray t _v _) = Left $ TArray 0 t
   typeOf (EInvoke _ sig _) = Left $ methodResult sig
 
   -- comparisons
@@ -99,7 +96,7 @@ instance TypeableJ Value Value where
 
 type SimpleTyperST = (M.Map Local Type, M.Map Local Local)
 simpleTyper :: JimpleMethod Value -> JimpleMethod Value
-simpleTyper (meth@(Method sig ls is ms me)) =
+simpleTyper (meth@(Method sig ls _is ms _me)) =
   meth { methodLocalDecls = []
        , methodStmts = ms2
        }
@@ -127,7 +124,7 @@ simpleTyper (meth@(Method sig ls is ms me)) =
                 SDeclare t1 (VarLocal v) e
 
         SIfElse c left right -> liftM2 (SIfElse c) (go' left) (go' right)
-        SSwitch n e ls       -> liftM (SSwitch n e) $ handleSwitch ls
+        SSwitch n e sls      -> liftM (SSwitch n e) $ handleSwitch sls
         SDoWhile n body v    -> liftM (flip (SDoWhile n) v) (go' body)
         STryCatch body cs0 mfn -> do
           let fnM = case mfn of
@@ -145,7 +142,7 @@ simpleTyper (meth@(Method sig ls is ms me)) =
 
     handleExcepts cs = forM cs $ \(exc, body) -> isolate $ do
       let go' = mapM go
-      set (Local "exc") $ Left $ TObject $ CF.classPath exc
+      set (Local "exc") $ Left $ TObject $ fromUtf8 $ CF.classPath exc
       (exc,) <$> go' body
 
 
@@ -159,7 +156,7 @@ simpleTyper (meth@(Method sig ls is ms me)) =
     set (Local "_") _ = return ()
 
     set (Local nm) (Left t) = do
-      let nms = nm:[nm ++ '_' : show i | i <- [2..]]
+      let nms = nm:[nm `T.snoc` '_' ++ showT i | i <- [2..]]
       nm2 <- Local <$> findMatch t nms
       modifySnd $ M.insert (Local nm) nm2
 
@@ -189,5 +186,5 @@ simpleTyper (meth@(Method sig ls is ms me)) =
 
     typeOf' t = case typeOf t of
       Left (TObject "<this>") ->
-        Left $ TObject $ CF.classPath $ methodClass sig
+        Left $ TObject $ fromUtf8 $ CF.classPath $ methodClass sig
       t1 -> t1

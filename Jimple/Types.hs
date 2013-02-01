@@ -5,7 +5,11 @@
 
 module Jimple.Types where
 
+import Prelude ()
+import CustomPrelude
+
 import qualified Data.ByteString as B
+import qualified Data.Text as T
 import qualified Data.Foldable as F
 import qualified Parser as CF
 
@@ -56,10 +60,10 @@ data Stmt v = SBreakpoint
             -- Below are statements for transitioning from Jimple to Java
             | SIfElse (Expression v) [LabelStmt v] [LabelStmt v]
             -- We used labeled continue/break to tie the action to the loop
-            | SDoWhile  String [LabelStmt v] Value
-            | SBreak    String
-            | SContinue String
-            | SSwitch   String v [(Maybe Integer, [LabelStmt v])]
+            | SDoWhile  Text [LabelStmt v] Value
+            | SBreak    Text
+            | SContinue Text
+            | SSwitch   Text v [(Maybe Integer, [LabelStmt v])]
             -- Low-level exception hints, catch (finally is 'SCatch Nothing')
             | STry      (Integer, Integer) Integer
             | SCatch    (Integer, Integer) ExceptEntry (Maybe CF.Class)
@@ -67,7 +71,7 @@ data Stmt v = SBreakpoint
               [(CF.Class, [LabelStmt v])] -- catch exception
               (Maybe [LabelStmt v])       -- finally
             -- Mainly for debugging
-            | SComment String
+            | SComment Text
             deriving (Eq, Ord, Functor, F.Foldable)
 
 
@@ -107,9 +111,9 @@ instance Integral Label where
 labelOp f (Label a) (Label b) = Label $ a `f` b
 
 
-data Local = Local String
+data Local = Local Text
            deriving (Eq, Ord)
-instance Show Local where show (Local s) = s
+instance Show Local where show (Local s) = T.unpack s
 
 
 data AccessFlag = FPublic
@@ -130,7 +134,7 @@ data Constant = CDouble Double
               | CFloat  Double
               | CInt    Integer
               | CLong   Integer
-              | CString B.ByteString
+              | CString Text
               | CNull
               | CBoolean Bool
               deriving (Eq, Ord, Show)
@@ -190,7 +194,7 @@ data InvokeType v = IInterface v
 
 data MethodSignature = MethodSig
                        { methodClass  :: CF.Class
-                       , methodName   :: B.ByteString
+                       , methodName   :: Text
                        , methodAccess :: [ AccessFlag ]
                        , methodParams :: [Type]
                        , methodResult :: Type
@@ -199,7 +203,7 @@ data MethodSignature = MethodSig
 
 data Type = TByte | TChar  | TInt | TBoolean | TShort
           | TLong | TFloat | TDouble
-          | TObject B.ByteString | TAddr | TVoid
+          | TObject Text | TAddr | TVoid
           | TArray Int Type
           | TUnknown
           deriving (Eq, Ord, Show)
@@ -222,10 +226,10 @@ instance Show v => Show (Stmt v) where
                                   , show a, " else "
                                   , show b]
 
-  show (SContinue name) = "continue " ++ name
-  show (SBreak    name) = "break "    ++ name
+  show (SContinue name) = "continue " ++ T.unpack name
+  show (SBreak    name) = "break "    ++ T.unpack name
 
-  show (SDoWhile name body cond) = concat [name, ": do ", show body
+  show (SDoWhile name body cond) = concat [T.unpack name, ": do ", show body
                                            , " while (", show cond, ")"]
 
   show (SLookupSwitch v lbl ls) = "lswitch " ++ show v ++ " " ++ show lbl ++ " " ++ show ls
@@ -237,7 +241,7 @@ instance Show v => Show (Stmt v) where
   show (STableSwitch i lbl ls) = "tswitch" ++ show i ++ " " ++ show lbl ++ " "
                                   ++ show ls
 
-  show (SSwitch name v cs) = concat [name, ": switch (", show v, ") ", show cs]
+  show (SSwitch name v cs) = concat [T.unpack name, ": switch (", show v, ") ", show cs]
 
   show (SThrow i) = "throw " ++ show i
 
@@ -247,7 +251,7 @@ instance Show v => Show (Stmt v) where
   show (STryCatch body catches finally) =
     concat ["tryCatch ", show body, show catches, " finally ", show finally]
 
-  show (SComment s) = "comment " ++ s
+  show (SComment s) = "comment " ++ T.unpack s
 
 instance Show v => Show (Variable v) where
   show (VarRef   ref) = '@' : show ref

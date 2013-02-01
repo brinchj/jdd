@@ -2,48 +2,42 @@
 
 module Test where
 
+import Prelude()
+import CustomPrelude
+
 -- HUnit
 import Test.HUnit
-
--- Jimple
-import Jimple
-import Jimple.Typing
-import Jimple.Types
-import Jimple.Maps
 
 -- Code generator
 import Cogen
 import Cogen.Java
-import Cogen.Java.Jimple
+import Cogen.Java.Jimple()
 
 -- Parser
 import qualified Parser as CF
 
 import System.Exit
 import System.Process
-import System.Directory
-import System.Unix.Directory
-import System.FilePath
+import System.Directory (copyFile, createDirectory)
+import System.Unix.Directory (withTemporaryDirectory)
 
 import Control.Monad.Error
-import Control.Applicative
 
+import qualified Data.Text as T
 import qualified Data.ByteString as B
-import qualified Data.Map as Map
-import Data.Either
 
 
-decompileClass :: FilePath -> IO String
+decompileClass :: FilePath -> IO Text
 decompileClass file = do
-  cf <- CF.parseClassFile <$> B.readFile file
+  cf <- CF.parseClassFile <$> B.readFile (pathString file)
   return $ flatCode $ toJava cf
 
 
 runJavaOK :: MonadIO m => FilePath -> FilePath -> ErrorT String m String
 runJavaOK workDir path = do
   -- Compile program
-  run "javac" [workDir </> path <.> "java"]
-  run "java"  ["-cp", workDir, path]
+  _ <- run "javac" [pathString $ workDir </> path <.> "java"]
+  run "java"  ["-cp", pathString workDir, pathString path]
   where
     run cmd args = do
       (exit, stdout, stderr) <- liftIO $ readProcessWithExitCode cmd args ""
@@ -54,10 +48,11 @@ runJavaOK workDir path = do
 
 runJavaTwice :: MonadIO m =>
                 FilePath -> m (Either String String, Either String String)
-runJavaTwice path = liftIO $ withTemporaryDirectory "jdd-test" $ \tmpDir -> do
-  makeDirs tmpDir $ splitDirectories $ takeDirectory path
+runJavaTwice path = liftIO $ withTemporaryDirectory "jdd-test_" $ \tmpDir' -> do
+  let tmpDir = stringPath tmpDir'
+  makeDirs tmpDir $ splitDirectories $ directory path
   -- Test original
-  copyFile javaPath $ tmpDir </> javaPath
+  copyFile (pathString javaPath) $ pathString (tmpDir </> javaPath)
   stdout0 <- run tmpDir
   -- Test decompiled
   code <- decompileClass $ tmpDir </> path <.> "class"
@@ -68,16 +63,16 @@ runJavaTwice path = liftIO $ withTemporaryDirectory "jdd-test" $ \tmpDir -> do
   where
     run workDir = liftIO $ runErrorT $ runJavaOK workDir path
 
-    makeDirs dir ("/":xs) = makeDirs dir xs
-    makeDirs dir (".":xs) = makeDirs dir xs
-    makeDirs dir (x:xs) = createDirectory (dir </> x) >> makeDirs (dir </> x) xs
+    makeDirs dir (x:xs) | pathString x `elem` ["", "."] = makeDirs dir xs
+    makeDirs dir (x:xs) = createDirectory (pathString $ dir </> x)
+                          >> makeDirs (dir </> x) xs
     makeDirs dir []     = return ()
 
     javaPath = path <.> "java"
 
 
 check assertEq fail (resultA, resultB) = do
-  mapM_ (fail.show) $ lefts [resultA, resultB]
+  mapM_ (fail . show) $ lefts [resultA, resultB]
   let [stdoutA, stdoutB] = rights [resultA, resultB]
   assertEq "stdout" stdoutA stdoutB
 
@@ -86,7 +81,9 @@ testJava :: FilePath -> IO ()
 testJava path = check assertEqual assertFailure =<< runJavaTwice path
 
 
-makeTest name = TestLabel name $ TestCase $ testJava $ "examples" </> name
+makeTest :: Text -> Test
+makeTest name = TestLabel (T.unpack name) $ TestCase $
+                testJava $ "examples" </> textPath name
 
 
 tests = runTestTT $ TestList $ map makeTest

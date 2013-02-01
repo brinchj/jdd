@@ -4,19 +4,17 @@
 
 module Jimple where
 
-import Prelude hiding (catch)
+import Prelude ()
+import CustomPrelude
 
 import qualified Data.ByteString.Char8 as B
 
-import Debug.Trace
-
-import Safe
 import Data.Bits
 import Data.Char
-import Data.Maybe
-import Data.Ord
 
 import Numeric
+
+import qualified Data.Text as T
 
 import qualified Data.Foldable as F
 import qualified Data.Map      as M
@@ -27,22 +25,18 @@ import Text.Parsec.Char
 import Text.Parsec.Combinator
 import Text.Parsec as P
 
-import Control.Monad
 import Control.Monad.State as ST
 import Control.Monad.Reader as R
-import Control.Applicative
-import Control.Exception (catch)
 
 import qualified Parser as CF
 
-import Util
 import Jimple.Types
 import Jimple.Exceptions
 import Jimple.Rewrite (try_)
 
 
 typeP :: Parser Type
-typeP = try $ do
+typeP = P.try $ do
   tag <- anyChar
   case tag of
     'B' -> return TByte
@@ -54,11 +48,11 @@ typeP = try $ do
     'S' -> return TShort
     'Z' -> return TBoolean
     'V' -> return TVoid
-    'L' -> TObject . B.pack <$> anyChar `manyTill` char ';'
+    'L' -> TObject . T.pack <$> anyChar `manyTill` char ';'
     '[' -> do
       dims <- length <$> option [] (many1 $ char '[')
       TArray (dims + 1) <$> typeP
-    _   -> fail $ "Unknown type tag: " ++ show tag
+    _   -> failT $ "Unknown type tag: " ++ showT tag
 
 methodTypeP :: Parser ([Type], Type)
 methodTypeP = do
@@ -71,7 +65,7 @@ methodTypeFromBS :: B.ByteString -> Either ParseError ([Type], Type)
 methodTypeFromBS = runP methodTypeP () "typesFromBS"
 
 methodTypeFromBS' :: B.ByteString -> ([Type], Type)
-methodTypeFromBS' = either (error.show) id . methodTypeFromBS
+methodTypeFromBS' = either (errorT . showT) id . methodTypeFromBS
 
 
 -- | Parse Type from ByteString
@@ -95,14 +89,18 @@ typeFromBS' = either (const TUnknown) id . typeFromBS
 methodSigP :: ([Type] -> Type -> MethodSignature) -> Parser MethodSignature
 methodSigP meth = liftM2 meth paramsP resultP
   where
-    paramsP = between (char '(') (char ')') $ P.many $ try typeP
-    resultP = choice [try typeP, try voidP]
+    paramsP = between (char '(') (char ')') $ P.many $ P.try typeP
+    resultP = choice [P.try typeP, P.try voidP]
     voidP = char 'V' >> return TVoid
 
 
+methodSigFromBS :: ByteString -> ([Type] -> Type -> MethodSignature) ->
+                   Either ParseError MethodSignature
 methodSigFromBS bs meth = runP (methodSigP meth) () "methodSig" bs
 
-methodSigFromBS' bs meth = either (error $ "methodSig: " ++ show bs) id $
+methodSigFromBS' :: ByteString -> ([Type] -> Type -> MethodSignature) ->
+                    MethodSignature
+methodSigFromBS' bs meth = either (errorT $ "methodSig: " ++ showT bs) id $
                      methodSigFromBS bs meth
 
 
@@ -119,6 +117,7 @@ bytesToUnsigned :: String -> Integer
 bytesToUnsigned = L.foldl' (\n b -> n * 256 + fromIntegral (ord b)) 0
 
 
+exceptionTableM :: Parser ExceptTable
 exceptionTableM = do
   size <- u2
   entries <- replicateM (fromIntegral size) entry
@@ -140,7 +139,7 @@ data JimpleST = JimpleST { jimpleFree  :: [Variable Value]
                          , prevPos     :: Integer
                          }
 
-byteCodeP excTable codeLength = do
+byteCodeP excTable = do
   ST.modify $ \(m, j) -> (m, j { thisPos = 0, prevPos = 0 })
   codeM
 
@@ -157,33 +156,33 @@ byteCodeP excTable codeLength = do
         append $ STry (pos, exceptTo exc) $ exceptTarget exc
 
       -- Handle catch
-      F.forM_ (fromTarget excTable pos) catch
+      F.forM_ (fromTarget excTable pos) tryCatch
 
       -- Check for EOF
       mcode <- optionMaybe nextByte
       case mcode of
         Nothing -> return ()
-        Just c  -> parse (ord c) >> codeM
+        Just c  -> parseByte (ord c) >> codeM
 
     revertScopes pos = do
       scope <- ST.gets $ headMay . jimpleScope . snd
       case scope of
         Just (endPos, free, stack) | endPos <= pos -> do
-          -- error $ show (endPos, pos)
+          -- error $ showT (endPos, pos)
           modifySnd $ \j -> j { jimpleFree = free, jimpleStack = stack
                               , jimpleScope = tail $ jimpleScope j }
           revertScopes pos
         _ -> return ()
 
 
-    catch (ee@(ExceptEntry start to _ eid)) = do
+    tryCatch (ee@(ExceptEntry start to _ eid)) = do
       mx <- if eid == 0 then return Nothing else getCP eid
-      let x = (\(CF.ClassRef x) -> x) `fmap` mx
-      append $ SCatch (start, to) ee x
+      let mr = (\(CF.ClassRef ref) -> ref) `fmap` mx
+      append $ SCatch (start, to) ee mr
       void $ pushL $! VarLocal $! Local "exc"
 
 
-    parse code = case code of
+    parseByte code = case code of
       -- NOP: needed to maintain correct line count for goto
       0x00 -> append SNop
 
@@ -353,13 +352,13 @@ byteCodeP excTable codeLength = do
 
       -- GETFIELD: get instance field
       0xb4 -> do
-        Just (CF.FieldRef cs desc) <- askCP2
+        Just (CF.FieldRef _cs desc) <- askCP2
         obj <- popI
         void $ push $! VLocal $! VarRef $! RInstanceField obj desc
 
       -- PUTFIELD: get instance field
       0xb5 -> do
-        Just (CF.FieldRef cs desc) <- askCP2
+        Just (CF.FieldRef _cs desc) <- askCP2
         (val, obj) <- liftM2 (,) pop popI
         append $! SAssign (VarRef $! RInstanceField obj desc) $!
                   VLocal val
@@ -397,8 +396,8 @@ byteCodeP excTable codeLength = do
 
       -- NEWARRAY: new array of primitive type
       0xbc -> do tpe   <- fromIntegral <$> u1
-                 count <- popI
-                 void $ push $ VExpr $! ENewArray (atypes !! (tpe - 4)) count
+                 elems <- popI
+                 void $ push $ VExpr $! ENewArray (atypes !! (tpe - 4)) elems
 
       -- ARRAYLENGTH: get length of array ref
       0xbe -> void . push =<< VExpr . ELength <$> popI
@@ -406,7 +405,7 @@ byteCodeP excTable codeLength = do
       -- CHECKCAST: cast an object to type
       0xc0 -> do Just (CF.ClassRef (CF.Class path)) <- askCP2
                  obj <- popI
-                 void $ push $ VExpr $! ECast (TObject path) obj
+                 void $ push $ VExpr $! ECast (TObject $ fromUtf8 path) obj
 
       -- IFNULL: if value is null jump
       0xc6 -> do v <- popI
@@ -423,7 +422,7 @@ byteCodeP excTable codeLength = do
       _ -> error $ "Unknown code: 0x" ++ showHex code ""
 
 
-    getLocal idx = VarLocal $! Local $! 'l' : show idx
+    getLocal idx = VarLocal $! Local $! 'l' `T.cons` showT idx
 
     -- pop a value from the stack (return first stack variable)
     pop = do
@@ -496,7 +495,7 @@ byteCodeP excTable codeLength = do
     -- read a method description from constant pool
     methodP = do
       Just (CF.Method path (CF.Desc name tpe)) <- askCP2
-      return $! methodSigFromBS' tpe $! MethodSig path name []
+      return $! methodSigFromBS' tpe $! MethodSig path (fromUtf8 name) []
 
     -- apply operator to stack vars
     apply1 op = liftM op popI
@@ -538,8 +537,8 @@ byteCodeP excTable codeLength = do
                 | otherwise                = getFree
 
     -- Convert constant pool value to VConst
-    cpToVC (CF.Str s) = VConst $! CString s
-    cpToVC a = error $ "Unknown constant: " ++ show a
+    cpToVC (CF.Str s) = VConst $! CString $! fromUtf8 s
+    cpToVC a = errorT $ "Unknown constant: " ++ showT a
 
     types = [ TInt,       TLong,    TFloat, TDouble
             , TObject "", TBoolean, TChar,  TShort  ]
@@ -555,18 +554,20 @@ parseJimple cf method
     emptyMethod = Method   sig [] [] [] []
     emptyState  = JimpleST stackVars [] [] 0 0
 
-    stackVars = map (VarLocal . Local . ("s"++) . show) [1..]
+    stackVars = map (VarLocal . Local . ('s' `T.cons`) . showT)
+                     [1 :: Int ..]
 
-    go (Left err, (meth, jst)) = (Just err, meth)
-    go (Right _,  (meth, jst)) = (Nothing,  meth)
+    go (Left err, (meth, _)) = (Just err, meth)
+    go (Right _,  (meth, _)) = (Nothing,  meth)
 
     CF.AttrBlock{..} = CF.classMethods cf M.! method
     bytes = blockAttrs M.! "Code"
     hasCode = "Code" `M.member` blockAttrs
 
     goM = do
-      let MethodSig _ _ _ vs r = methodSigFromBS' blockDesc $
-                                 MethodSig (CF.Class "") blockDesc []
+      let MethodSig _ _ _ vs _r =
+            methodSigFromBS' blockDesc $
+            MethodSig (CF.Class "") (fromUtf8 blockDesc) []
       modifyFst $ \m -> m { methodLocalDecls = zipWith decl vs ns }
       -- Add reference to this from "l0" when method is not static
       unless isStatic $
@@ -582,31 +583,32 @@ parseJimple cf method
       let codeLengthM = do
             _ <- count dropSize anyToken  -- maxStack, maxLocals
             bytesToUnsigned <$> count 4 anyToken
-      let codeLength = either (error.show) id $
+      let codeLength = either (errorT . showT) id $
                        runP codeLengthM () "codeSize" bytes
       let (codeBytes, rest) = B.splitAt (fromIntegral codeLength) $
                               B.drop (dropSize + 4) bytes
 
       -- Extract exception table
       let excTable = cleanupExcTable $
-                     either (error.show) id $
+                     either (errorT . showT) id $
                      runP exceptionTableM () "exceptionTable" rest
 
       -- code <- runP (count codeSize anyChar)
-      runPT (byteCodeP excTable codeLength) () "" codeBytes
+      runPT (byteCodeP excTable) () "" codeBytes
 
-    decl t n = LocalDecl t $ Local $ 'l' : show n
+    decl t n = LocalDecl t $ Local $ 'l' `T.cons` showT n
 
-    ns = if isStatic then [0..] else [1..]
+    ns = if isStatic then [0 :: Int ..] else [1..]
     isStatic = FStatic `elem` accFlags
 
     sig = MethodSig (CF.unClassRef $ CF.classThis cf) name accFlags params result
 
-    name = blockName
+    name = fromUtf8 blockName
     (params, result) = methodTypeFromBS' blockDesc
 
     accFlags = getFlags blockFlags
 
+getFlags :: Bits a => a -> [AccessFlag]
 getFlags blockFlags = [ flag | (i, flag) <- flags, blockFlags `testBit` i ]
   where
     flags = [ ( 0, FPublic)

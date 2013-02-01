@@ -2,8 +2,8 @@
 
 module Jimple.Exceptions where
 
-import Data.Maybe
-import Data.Ord
+import Prelude()
+import CustomPrelude
 
 import qualified Data.List as L
 import qualified Data.Map  as M
