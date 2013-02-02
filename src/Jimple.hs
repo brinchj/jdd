@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedStrings
-           , RecordWildCards
-  #-}
-
 module Jimple where
 
 import Prelude ()

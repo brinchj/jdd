@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedStrings
-           , ViewPatterns
-  #-}
-
 module Main where
 
 import Prelude()
@@ -9,9 +5,6 @@ import CustomPrelude
 
 import System.Environment (getProgName)
 import System.Exit (exitFailure)
-
-import Control.Monad
-import Control.Applicative
 
 import qualified Data.Text as T
 import qualified Data.ByteString.Char8 as B
@@ -25,7 +18,7 @@ import Test (tests, makeTest)
 import Test.Random (randomTest)
 
 import Test.HUnit (runTestTT, Test(..))
-import Test.QuickCheck (verboseCheck, Result(..))
+import Test.QuickCheck (verboseCheck)
 
 
 usage name = putStrLn $ name ++ " [-|classfile|--test|--test-qc|--help]"

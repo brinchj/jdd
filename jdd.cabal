@@ -69,7 +69,21 @@ executable jdd
         -- Testing
         QuickCheck >= 2.5, HUnit >= 1.2.5
 
-    ghc-options: -funbox-strict-fields
-                 -Wall -fno-warn-hi-shadowing
-                 -fno-warn-name-shadowing
-                 -fno-warn-missing-signatures
+    ghc-options:
+        -funbox-strict-fields
+        -Wall
+        -fno-warn-hi-shadowing
+        -fno-warn-name-shadowing
+        -fno-warn-missing-signatures
+
+    extensions:
+        FlexibleInstances
+        FlexibleContexts
+        GeneralizedNewtypeDeriving
+        MultiParamTypeClasses
+        OverloadedStrings
+        PatternGuards
+        RecordWildCards
+        ScopedTypeVariables
+        TupleSections
+        ViewPatterns

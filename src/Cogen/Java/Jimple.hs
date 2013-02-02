@@ -1,8 +1,3 @@
-{-# LANGUAGE OverloadedStrings
-           , FlexibleInstances
-           , RecordWildCards
-  #-}
-
 module Cogen.Java.Jimple where
 
 

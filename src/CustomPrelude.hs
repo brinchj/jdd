@@ -1,7 +1,3 @@
-{-# LANGUAGE FlexibleContexts
-           , OverloadedStrings
-  #-}
-
 module CustomPrelude
        ( -- * Module exports
          module BasicPrelude

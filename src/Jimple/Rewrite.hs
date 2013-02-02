@@ -1,8 +1,3 @@
-{-# LANGUAGE FlexibleInstances
-           , MultiParamTypeClasses
-           , FlexibleContexts
-  #-}
-
 module Jimple.Rewrite
        ( Parser
        , Item

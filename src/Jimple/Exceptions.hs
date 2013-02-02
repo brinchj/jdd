@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Jimple.Exceptions where
 
 import Prelude()

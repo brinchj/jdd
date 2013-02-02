@@ -1,10 +1,3 @@
-{-# LANGUAGE OverloadedStrings
-           , ScopedTypeVariables
-           , MultiWayIf
-           , TupleSections
-           , ViewPatterns
-  #-}
-
 module Jimple.Maps where
 
 import Prelude()

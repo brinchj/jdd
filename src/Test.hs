@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveFoldable #-}
+{-# LANGUAGE DeriveFoldable #-}
 
 module Test where
 

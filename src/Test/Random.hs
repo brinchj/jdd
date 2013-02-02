@@ -1,14 +1,7 @@
-{-# LANGUAGE FlexibleInstances
-           , TupleSections
-           , OverloadedStrings
-  #-}
-
 module Test.Random where
 
 import Prelude()
 import CustomPrelude
-
-import qualified Data.ByteString.Char8 as B
 
 import qualified Parser as CF
 import Jimple.Types
@@ -16,10 +9,6 @@ import Jimple.Types
 import Cogen (flatCode)
 import Cogen.Java
 import Cogen.Java.Jimple (stmtToJava)
-
-import Control.Applicative
-import Control.Monad hiding (join)
-import Control.Monad.Trans
 
 import qualified Control.Monad.State  as ST
 import qualified Control.Monad.Writer as W
@@ -31,9 +20,6 @@ import qualified Data.Map  as M
 import Test (runJavaTwice, check)
 import Test.QuickCheck
 import Test.QuickCheck.Monadic
-
--- import System.FilePath
-import System.Unix.Directory
 
 
 type SGen v = W.WriterT [Stmt Value] (ST.StateT (M.Map Type [Text]) Gen) v

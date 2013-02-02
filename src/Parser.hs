@@ -1,8 +1,3 @@
-{-# LANGUAGE OverloadedStrings
-           , GeneralizedNewtypeDeriving
-           , ScopedTypeVariables
- #-}
-
 module Parser
        (
          parseClassFile

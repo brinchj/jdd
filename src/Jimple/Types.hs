@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveFunctor
            , DeriveFoldable
-           , OverloadedStrings
   #-}
 
 module Jimple.Types where
@@ -8,7 +7,6 @@ module Jimple.Types where
 import Prelude ()
 import CustomPrelude
 
-import qualified Data.ByteString as B
 import qualified Data.Text as T
 import qualified Data.Foldable as F
 import qualified Parser as CF

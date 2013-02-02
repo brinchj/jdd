@@ -1,9 +1,3 @@
-{-# LANGUAGE MultiParamTypeClasses
-           , FlexibleInstances
-           , OverloadedStrings
-           , TupleSections
-  #-}
-
 module Jimple.Typing where
 
 import Prelude()
@@ -14,7 +8,6 @@ import Jimple.Types
 import qualified Jimple as J
 import qualified Parser as CF
 
-import qualified Data.Text as T
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 
@@ -156,7 +149,7 @@ simpleTyper (meth@(Method sig ls _is ms _me)) =
     set (Local "_") _ = return ()
 
     set (Local nm) (Left t) = do
-      let nms = nm:[nm `T.snoc` '_' ++ showT i | i <- [2..]]
+      let nms = nm:[nm ++ "_" ++ showT i | i <- [2..]]
       nm2 <- Local <$> findMatch t nms
       modifySnd $ M.insert (Local nm) nm2
 
