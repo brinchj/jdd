@@ -58,7 +58,7 @@ data Stmt v = SBreakpoint
             -- Below are statements for transitioning from Jimple to Java
             | SIfElse (Expression v) [LabelStmt v] [LabelStmt v]
             -- We used labeled continue/break to tie the action to the loop
-            | SDoWhile  Text [LabelStmt v] Value
+            | SDoWhile  Text [LabelStmt v] v
             | SBreak    Text
             | SContinue Text
             | SSwitch   Text v [(Maybe Integer, [LabelStmt v])]
