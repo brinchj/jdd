@@ -112,17 +112,25 @@ mapCleanup m = m { methodStmts = go $ methodStmts m }
 
 
 -- Perform value-inlining of pure values
-mapInline m = m { methodStmts = go $ methodStmts m }
+mapInline m = m { methodStmts = go stmts }
   where
-    go s = ST.evalState (mapM go' s) M.empty
+    stmts   = methodStmts m
+    assigns = foldS f M.empty stmts
+      where
+        f m (_, SAssign v e) = M.insertWith (+) v 1 m
+        f m _                = m
 
-    go' (l, s) = do
+    go s = ST.evalState (mapM (go' assigns) s) M.empty
+
+    go' r (l, s) = do
       m <- ST.get
-      update s
+      case s of
+        SAssign v e | Just 1 <- M.lookup v r -> update s
+        _                                    -> return ()
       return (l, inline m `fmap` s)
 
-    inline m (val@(VLocal (var@(VarLocal (Local nm)))))
-      | 's' <- T.head nm = fromMaybe val $ M.lookup var m
+    inline m (val@(VLocal (var@(VarLocal (Local nm))))) =
+      fromMaybe val $ M.lookup var m
 
     inline m (VExpr  e) = VExpr $ inline m `fmap` e
     inline m (VLocal v) = VLocal $ inline m `fmap` v
