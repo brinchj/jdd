@@ -37,6 +37,7 @@ module Jimple.Rewrite
 
        -- Utility functions
        , scopeLess
+       , mapScope
 
        , ScopeAction(..)
        , concatMapScope
@@ -219,6 +220,11 @@ scopeLess (SDoWhile  name _ cnd) = SDoWhile  name [] cnd
 scopeLess (SSwitch   name v _  ) = SSwitch   name v  []
 scopeLess (STryCatch _    _ _  ) = STryCatch []   [] Nothing
 scopeLess stmt                   = stmt
+
+
+
+mapScope line scope scopeLine how =
+  concatMapScope (liftM pure . line) scope scopeLine how
 
 data ScopeAction v = Ignore
                    | AsLine
