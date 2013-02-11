@@ -36,6 +36,8 @@ module Jimple.Rewrite
        , many
 
        -- Utility functions
+       , scopeLess
+
        , ScopeAction(..)
        , concatMapScope
        )
@@ -211,6 +213,12 @@ rewritePrefix p = go
 
 -- | Utility functions
 
+
+scopeLess (SIfElse   cnd  _ _  ) = SIfElse   cnd  [] []
+scopeLess (SDoWhile  name _ cnd) = SDoWhile  name [] cnd
+scopeLess (SSwitch   name v _  ) = SSwitch   name v  []
+scopeLess (STryCatch _    _ _  ) = STryCatch []   [] Nothing
+scopeLess stmt                   = stmt
 
 data ScopeAction v = Ignore
                    | AsLine
