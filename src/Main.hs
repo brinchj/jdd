@@ -39,14 +39,14 @@ main = do
                       -- putStrLn $ output r
                       -- putStrLn $ "\n\nReason:" ++ reason r
 
-    _ | "-" <- T.take 1 cmd -> do
+    _ | "--" <- T.take 2 cmd -> do
       usage name
       putStrLn $ "Error: Unknown flag " ++ cmd
       exitFailure
 
     fileOrStdin -> do
       bytes <- if fileOrStdin == "-" then B.getContents
-               else B.readFile $ show fileOrStdin
+               else B.readFile $ fromText fileOrStdin
       putStrLn $ flatCode $ toJava $ CF.parseClassFile bytes
 
 
