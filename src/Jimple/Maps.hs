@@ -283,7 +283,7 @@ mapGotoIf = mapRewrite $ do
 -- > if cond whileLbl
 --
 -- body1 may contain other loops/ifs, break and continue
-mapWhile  m = m { methodStmts = go $ methodStmts m }
+mapWhile m = m { methodStmts = go $ methodStmts m }
   where
     go ops = fromMaybe ops $ rewrite rule ops
 
