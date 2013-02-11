@@ -54,7 +54,7 @@ isCmp e = case e of
    ECmp  _ _ -> True
    ECmpg _ _ -> True
    ECmpl _ _ -> True
-   _          -> False
+   _         -> False
 
 instance (TypeableJ v v) => TypeableJ (Expression v) v where
   typeOf (ELength _) = Left TInt
