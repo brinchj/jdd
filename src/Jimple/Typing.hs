@@ -1,17 +1,22 @@
+{-# LANGUAGE MultiWayIf #-}
+
 module Jimple.Typing where
 
 import Prelude()
 import CustomPrelude
 
 import Jimple.Types
+import Jimple.Rewrite (mapScope, ScopeAction(..))
 
 import qualified Jimple as J
 import qualified Parser as CF
 
 import qualified Data.Foldable as F
-import qualified Data.Map as M
+import qualified Data.Map      as M
+import qualified Data.Set      as S
 
-import qualified Control.Monad.State as ST
+import qualified Control.Monad.Reader as R
+import qualified Control.Monad.State  as ST
 
 type TypeV v = Either Type (Variable v, Type -> Type)
 
@@ -181,3 +186,71 @@ simpleTyper (meth@(Method sig ls _is ms _me)) =
       Left (TObject "<this>") ->
         Left $ TObject $ fromUtf8 $ CF.classPath $ methodClass sig
       t1 -> t1
+
+
+splitVariables :: JimpleMethod Value -> JimpleMethod Value
+splitVariables (meth@(Method _sig ls _is ms _me)) = meth { methodStmts = ms2 }
+  where
+    initScope = S.fromList [ l | LocalDecl _t l <- ls ]
+
+    run fixed rules vars =
+      (`ST.runState` (rules, vars)) . (`R.runReaderT` fixed)
+
+    ms2 = fst $ run initScope M.empty varNames $
+          mapScope line scope scopeLine (const $ return Follow) ms
+
+    varNames = [ "var" ++ showT i | i <- [1 :: Int ..] ]
+
+    -- Create new rename rule for local 'l'
+    createNewName old = do
+      (rules, n:ns) <- ST.get
+      let new = Local n
+      ST.put (M.insert old new rules, ns)
+      return new
+
+    -- Rename locals used in line and create new names at assignments
+    line s = case s of
+      (mlbl, SAssign (VarLocal l) v) -> do
+        -- Check if variable is 'fixed' by outer scope or known, else rename
+        fixed <- R.asks  ( l `S.member` )
+        case fixed of
+          False | l /= Local "_" -> do
+            v2 <- renameV v
+            new <- createNewName l
+            return (mlbl, SAssign (VarLocal new) v2)
+          _ -> do
+            new <- ST.gets $ fromMaybe l . M.lookup l . fst
+            v2 <- renameV v
+            return (mlbl, SAssign (VarLocal new) v2)
+      _ -> rename s
+
+    -- Process scope-containing statement (called right before scope calls)
+    scopeLine s = line s
+
+    -- Change scope by locking currently renamed vars
+    scope mstmts = do
+      renamed <- ST.gets $ S.fromList . M.keys . fst
+      R.local (`S.union` renamed) mstmts
+
+
+    -- Rename locals in statement (according to rename rules in state)
+    rename (mlbl, s) = do
+      s2 <- renameS s
+      return (mlbl, s2)
+
+    -- Perform renaming inside a functor
+    renameS s = do
+      m <- ST.gets fst
+      return $ rename' m `fmap` s
+
+    -- Perform renaming inside a value (not a functor)
+    renameV v = do
+      m <- ST.gets fst
+      return $ rename' m v
+
+    -- Perform renaming in a value (base case)
+    rename' m (VLocal (VarLocal l)) | Just l' <- M.lookup l m =
+      VLocal $ VarLocal l'
+    rename' m (VLocal ref) = VLocal $ rename' m `fmap` ref
+    rename' m (VExpr e) = VExpr $ rename' m `fmap` e
+    rename' _ v = v
