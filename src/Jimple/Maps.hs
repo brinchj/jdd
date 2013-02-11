@@ -69,7 +69,9 @@ mapAppendEmpty m = m { methodStmts = map go $ methodStmts m }
     go s = s
 
 -- Identify pure values (no side-effects, used for inlining and cleaning)
-pureValue (VExpr EInvoke{}) = False
+pureValue (VExpr EInvoke{})        = False
+pureValue (VExpr ENewArray{})      = False
+pureValue (VExpr ENewMultiArray{}) = False
 pureValue (VExpr (ENew r _args)) = case r of
   RInstanceField _ _ -> True
   RStaticField   _ _ -> True
