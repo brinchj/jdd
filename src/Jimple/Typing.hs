@@ -149,7 +149,7 @@ simpleTyper (meth@(Method sig ls _is ms _me)) =
     set (Local "_") _ = return ()
 
     set (Local nm) (Left t) = do
-      let nms = nm:[nm ++ "_" ++ showT i | i <- [2..]]
+      let nms = nm:[nm ++ "_" ++ showT i | i <- [2 :: Int ..]]
       nm2 <- Local <$> findMatch t nms
       modifySnd $ M.insert (Local nm) nm2
 
@@ -159,7 +159,7 @@ simpleTyper (meth@(Method sig ls _is ms _me)) =
         Nothing -> return ()
         Just t  -> set (Local nm) $ Left $ conv t
 
-    set (Local nm) (Right (VarRef r, conv)) =
+    set (Local nm) (Right (VarRef r, _conv)) =
       set (Local nm) $ typeOf' r
 
     set a b = let err c = error $
