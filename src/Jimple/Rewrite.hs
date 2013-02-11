@@ -273,8 +273,8 @@ concatMapScope line scope scopeLine how stmts = goAll stmts
               mfin' <- maybe (return mfin) (liftM Just . single scopeN) mfin
               return1 $ (lbl, STryCatch body' (zip (map fst cs) csSnd) mfin')
 
-            -- Cannot follow something with no scopes
-            _ -> ignore
+            -- Cannot follow something with no scopes; treat as line
+            _ -> line pair
 
 
     -- Convert from ([[a]] -> m [[a]]) to ([a] -> m [a])
