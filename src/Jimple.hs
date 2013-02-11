@@ -346,6 +346,12 @@ byteCodeP excTable = do
         Just (CF.FieldRef cs desc) <- askCP2
         void $ push $! VLocal $! VarRef $! RStaticField cs desc
 
+      -- PUTSTATIC: put static field
+      0xb3 -> do
+        Just (CF.FieldRef cs desc) <- askCP2
+        v <- popI
+        append $ SAssign (VarRef $ RStaticField cs desc) v
+
       -- GETFIELD: get instance field
       0xb4 -> do
         Just (CF.FieldRef _cs desc) <- askCP2
