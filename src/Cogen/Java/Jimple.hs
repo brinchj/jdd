@@ -269,8 +269,9 @@ phase1 = mapSuper . mapThis . mapInit . mapLabels
 phase2 = mapFix $ mapCleanup . mapInline . mapAppendEmpty
 phase3 = mapFix $ mapGotoIf . mapSwitch . mapWhile . mapElimGoto
 phase4 = mapFix mapFixFinally . mapFix mapTryCatch
+phase5 = simpleTyper . splitVariables
 
-transform = foldl (flip (.)) id [phase1, phase2, phase3, phase4]
+transform = foldl (flip (.)) id [phase1, phase2, phase3, phase4, phase5]
 
 classToJava :: CF.ClassFile -> Java
 classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
@@ -309,6 +310,6 @@ classToJava cl = Java [ JavaStmt 0 $ "package " ++ clPackage ++ ";"
 
     jimpleMethod name =
        -- Transform method code and type local declarations
-       toJava (simpleTyper $ transform meth) ++ Java [emptyLine]
+       toJava (transform meth) ++ Java [emptyLine]
       where
         (err, meth) = parseJimple cl name
