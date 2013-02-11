@@ -46,7 +46,7 @@ module Jimple.Rewrite
 import Control.Applicative hiding (many)
 
 import Control.Monad
-import Control.Monad.Error    (runErrorT, ErrorT(..), throwError)
+import Control.Monad.Error    (runErrorT, ErrorT(..))
 import Control.Monad.Identity (runIdentity, Identity)
 
 import Data.Maybe
