@@ -33,7 +33,12 @@ module Jimple.Rewrite
        , rewrite
        , rewritePrefix
 
-       , many )
+       , many
+
+       -- Utility functions
+       , ScopeAction(..)
+       , concatMapScope
+       )
        where
 
 import Control.Applicative hiding (many)
@@ -202,3 +207,67 @@ rewritePrefix p = go
       res <- p
       stop <- sourceLine <$> getPosition
       return (stop - start, res)
+
+
+-- | Utility functions
+
+
+data ScopeAction v = Ignore
+                   | AsLine
+                   | Replace [LabelStmt v]
+                   | Follow
+
+concatMapScope :: (Functor m, Monad m) =>
+                  (LabelStmt v -> m [LabelStmt v]) ->
+                  (m [[LabelStmt v]] -> m [[LabelStmt v]]) ->
+                  (LabelStmt v -> m (LabelStmt v)) ->
+                  (LabelStmt v -> m (ScopeAction v)) ->
+                  [LabelStmt v] -> m [LabelStmt v]
+concatMapScope line scope scopeLine how stmts = goAll stmts
+  where
+    goAll ls = concat <$> mapM go ls
+
+    go (pair@(lbl, lstmt)) = do
+      let return1 = return . pure
+      let scopeN' l f = scopeN l >>= \l' -> return1 $ f l'
+      let ignore = return [pair]
+      action <- how pair
+      case action of
+        Ignore      -> ignore
+        AsLine      -> line pair
+        Replace new -> return new
+        Follow      -> do
+          case lstmt of
+            SIfElse cnd l r -> do
+              (lbl', SIfElse cnd' _ _) <- scopeLine (lbl, SIfElse cnd [] [])
+              scopeN' [l, r] $ \[l', r'] -> (lbl', SIfElse cnd' l' r')
+
+            SDoWhile name body cnd -> do
+              (lbl', SDoWhile name' _ cnd') <- scopeLine (lbl, SDoWhile name [] cnd)
+              scopeN' [body] $ \[body'] -> (lbl', SDoWhile name' body' cnd')
+
+            SSwitch name v cs -> do
+              -- Create a single scope for the whole block
+              (lbl', SSwitch name' v' _) <- scopeLine $ (lbl, SSwitch name v [])
+              csSnd <- scope1 $ map snd cs
+              return1 (lbl', SSwitch name' v' $ zip (map fst cs) csSnd)
+
+            STryCatch body cs mfin -> do
+              -- Scope each block separately
+              (lbl', _) <- scopeLine (lbl, STryCatch [] [] Nothing)
+              body':csSnd <- scopeN $ body:map snd cs
+              mfin' <- maybe (return mfin) (liftM Just . single scopeN) mfin
+              return1 $ (lbl, STryCatch body' (zip (map fst cs) csSnd) mfin')
+
+            -- Cannot follow something with no scopes
+            _ -> ignore
+
+
+    -- Convert from ([[a]] -> m [[a]]) to ([a] -> m [a])
+    single f = liftM head . f . liftM pure
+
+    -- Create one scope for all the blocks (e.g. switch)
+    scope1 = scope . mapM goAll
+
+    -- Create a seperate scope for each block (e.g. if)
+    scopeN = mapM $ single scope . goAll
