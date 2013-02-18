@@ -270,7 +270,9 @@ concatMapScope line scope scopeLine how stmts = goAll stmts
               -- Scope each block separately
               (lbl', _) <- scopeLine (lbl, STryCatch [] [] Nothing)
               body':csSnd <- scopeN $ body:map snd cs
-              mfin' <- maybe (return mfin) (liftM Just . single scopeN) mfin
+              mfin' <- maybe
+                       (return Nothing)
+                       (liftM (Just . head) . scope1 . pure) mfin
               return1 $ (lbl, STryCatch body' (zip (map fst cs) csSnd) mfin')
 
             -- Cannot follow something with no scopes; treat as line
