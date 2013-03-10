@@ -1,6 +1,10 @@
 jdd
 ===
 
+Explanatory materials:
+
+* [Slides from Open Source Days 2013](https://docs.google.com/presentation/d/1RxTUgTzAUest1n5shn9432wWv9FObfwlFHQ2bUULOe8/edit?pli=1#slide=id.p).
+
 Compile Main executable:
 
     jdd > ghc --make Main
