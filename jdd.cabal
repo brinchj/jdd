@@ -48,7 +48,7 @@ executable jdd
         mtl >= 2
         ,
         -- util
-        process >= 1.1, safe >= 0.3.3
+        process >= 1.1, safe >= 0.3.3, Unixutils >= 1.52
         ,
         -- data structures
         containers >= 0.4, text >= 0.11
