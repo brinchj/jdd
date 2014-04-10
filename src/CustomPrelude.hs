@@ -29,7 +29,7 @@ module CustomPrelude
 
 
 import Prelude()
-import BasicPrelude hiding (show, typeOf)
+import BasicPrelude hiding (show, typeOf, readMay)
 import GHC.Show (Show(..))
 
 import Safe
